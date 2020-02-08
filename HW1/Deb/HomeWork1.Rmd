@@ -86,8 +86,8 @@ The data set describes baseball team statistics for the years 1871 to 2006 inclu
 
 **Load the data and understand the data by using some stats and plots.**
 ```{r, warning=FALSE}
-mtd <- read.csv("https://raw.githubusercontent.com/destination4debabrata/CUNY-Assignments/master/DATA%20621%2001%5B46893%5D/Week%203%20Simple%20Linear%20Regression%20Inference%2C%20Prediction%2C%20Explanation%20%5BFeb%2010%20-%20Feb%2016%5D/moneyball-training-data.csv")
-med <- read.csv("https://raw.githubusercontent.com/destination4debabrata/CUNY-Assignments/master/DATA%20621%2001%5B46893%5D/Week%203%20Simple%20Linear%20Regression%20Inference%2C%20Prediction%2C%20Explanation%20%5BFeb%2010%20-%20Feb%2016%5D/moneyball-evaluation-data.csv")
+mtd <- read.csv("https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW1/Deb/moneyball-training-data.csv")
+med <- read.csv("https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW1/Deb/moneyball-evaluation-data.csv")
 ```
 
 **View rows and columns, variable types**
