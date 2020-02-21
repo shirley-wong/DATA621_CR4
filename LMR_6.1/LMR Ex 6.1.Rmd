@@ -1,0 +1,118 @@
+---
+title: "Data 621 LMR Ex 6.1"
+author: "Sin Ying Wong"
+date: "2/20/2020"
+output:
+  pdf_document:
+    extra_dependencies: ["geometry", "multicol", "multirow"]
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_collapsed: yes
+    toc_float: yes
+    theme: cerulean
+    highlight: pygments
+    #css: ./lab.css
+theme: lumen
+number_sections: yes
+toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# LMR Exercise 6.1 
+
+Using the `sat` dataset, fit a model with the total SAT score as the response and expend, salary, ratio and takers as predictors. Perform regression diagnostics on this model to answer the following questions. Display any plots that are relevant. Do not provide any plots about which you have nothing to say. Suggest possible improvements or corrections to the model where appropriate.
+
+(a) Check the constant variance assumption for the errors.
+(b) Check the normality assumption.
+(c) Check for large leverage points.
+(d) Check for outliers.
+(e) Check for influential points.
+(f) Check the structure of the relationship between the predictors and the response.
+
+
+Let's load up the data.
+
+```{r data, warning=FALSE}
+data(sat, package='faraway')
+```
+
+## A. Check the constant variance assumption for errors
+
+The plots, as seen below, shows approximately constant variation.
+
+```{r partA, warning=FALSE}
+lmod <- lm(total~expend+salary+ratio+takers, sat)
+
+par(mfrow=c(1,2))
+
+plot(fitted(lmod), residuals(lmod), xlab="Fitted", ylab="Residuals",
+     title="Residuals against Fitted values")
+abline(h=0)
+
+plot(fitted(lmod), sqrt(abs(residuals(lmod))), xlab="Fitted",
+     ylab=expression(sqrt(hat(epsilon))), 
+     title="Residuals against Fitted values")
+abline(h=0)
+
+var.test(residuals(lmod), sqrt(abs(residuals(lmod))))
+```
+
+
+## B. Check the normality assumption
+
+```{r partB, warning=FALSE}
+par(mfrow=c(1,2))
+qqnorm(residuals(lmod), ylab="Residuals", main="")
+qqline(residuals(lmod))
+
+hist(residuals(lmod), xlab="Residuals", main="")
+```
+
+
+## C. Check for large leverage points
+
+```{r partC, warning=FALSE}
+hatv <- hatvalues(lmod)
+head(hatv)
+sum(hatv)
+```
+
+
+## D. Check for outliers
+
+```{r partD, warning=FALSE}
+set.seed(123)
+testdata <- data.frame(x=1:10, y=1:10+rnorm(10))
+lmod1 <- lm(y~x, testdata)
+
+p1 <- c(5.5,12)
+lmod2 <- lm(y~x, rbind(testdata, p1))
+plot(y~x, rbind(testdata, p1))
+points(5.5, 12, pch=4, cex=2)
+abline(lmod)
+abline(lmod2, lty=2)
+```
+
+
+## E. Check for influential points
+
+```{r partE, warning=FALSE}
+plot(dfbeta(lmod)[,2], ylab="Change in takers coef")
+abline(h=0)
+```
+
+## F. Check the structure of the relationship between the predictors and the response
+
+```{r partF, warning=FALSE}
+summary(lmod)
+
+d <- residuals(lm(total~expend+salary+ratio+takers, sat))
+m <- residuals(lm(takers~expend+salary+ratio, sat))
+plot(m, d, xlab="takers residuals", ylab="Sat Totals residuals")
+abline(0, coef(lmod)['takers'])
+```
+
