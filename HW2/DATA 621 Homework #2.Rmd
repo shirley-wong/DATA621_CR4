@@ -39,8 +39,10 @@ Complete each of the following steps as instructed:
 
 1. Download the classification output data set (attached in Blackboard to the assignment).
 
-```{r Import Data}
-data_raw <- read_csv('https://raw.githubusercontent.com/oggyluky11/DATA621_CR4/master/classification-output-data.csv')
+```{r Import Data, message=FALSE, warning=FALSE}
+data_raw <- read_csv('https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW2/classification-output-data.csv?_sm_au_=iVVW2ql3rPKlbr26kRvMGK3JRp2ft')
+
+#I changed the github link as I was gett the following message (Error in open.connection(con, "rb") : HTTP error 404.) with the following formula: data_raw <- read_csv('https://raw.githubusercontent.com/oggyluky11/DATA621_CR4/master/classification-output-data.csv') 
 ```
 
 2. The data set has three key columns we will use:
@@ -162,7 +164,7 @@ func_f1score(data)
 ```
 
 
-9. Before we move on, let’s consider a question that was asked: What are the bounds on the F1 score? Show that the F1 score will always be between 0 and 1. (Hint: If $0<a<1$ and $0<b<1$ then $ab<a$.)
+9. Before we move on, let's consider a question that was asked: What are the bounds on the F1 score? Show that the F1 score will always be between 0 and 1. (Hint: If $0<a<1$ and $0<b<1$ then $ab<a$.)
 
   let $\alpha = Precision$, $\beta = Sensitivity$, $\gamma = F1 Score = \displaystyle \frac{2 \times \alpha \times \beta}{\alpha+\beta}$
   
@@ -178,7 +180,62 @@ func_f1score(data)
 
 10. Write a function that generates an ROC curve from a data set with a true classification column (class in our example) and a probability column (scored.probability in our example). Your function should return a list that includes the plot of the ROC curve and a vector that contains the calculated area under the curve (AUC). Note that I recommend using a sequence of thresholds ranging from 0 to 1 at 0.01 intervals.
 ```{r}
+ROC <- function(x, y){
+  x <- x[order(y, decreasing = TRUE)]
+  TPR <- cumsum(x) / sum(x)
+  FPR <- cumsum(!x) / sum(!x)
+  xy <- data.frame(TPR, FPR, x)
+  
+  FPR_df <- c(diff(xy$FPR), 0)
+  TPR_df <- c(diff(xy$TPR), 0)
+  AUC <- round(sum(xy$TPR * FPR_df) + sum(TPR_df * FPR_df)/2, 4)
+  
+  plot(xy$FPR, xy$TPR, type = "l",
+       main = "ROC Curve",
+       xlab = "False Postivie Rate",
+       ylab = "True Positive Rate")
+  abline(a = 0, b = 1)
+  legend(.6, .4, AUC, title = "AUC")
+}
 
+ROC(data_raw$class,data$scored.probability)
 
 
 ```
+
+11. Use your **created R functions** and the  provided  classification  output data set to produce  all  of the classification metrics discussed above.
+```{r , message=FALSE}
+library(knitr)
+createdfunctions <- c(func_accuracy(data), func_Error_Rate(data), func_precision(data), func_sensitivity(data), func_specificity(data), func_f1score(data))
+names(createdfunctions) <- c("Accuracy", "Classification Error Rate", "Precision", "Sensitivity", "Specificity", "F1 Score")
+kable(createdfunctions, col.names = "Created Functions")
+```
+
+
+12. Investigate the **caret** package. In  particular, consider the functions  confusionMatrix,  sensitivity,  and specificity. Apply the functions to the data set. How do the results compare with your own functions?
+```{r}
+library(caret)
+b <- data_raw %>%
+  select(scored.class, class) %>%
+  mutate(scored.class = as.factor(scored.class), 
+         class = as.factor(class))
+
+c <- confusionMatrix(b$scored.class, b$class, positive = "1")
+
+caret_package <- c(c$overall["Accuracy"], c$byClass["Sensitivity"], c$byClass["Specificity"])
+
+createdfunctions2 <- c(func_accuracy(data), func_sensitivity(data), func_specificity(data))
+
+d <- cbind(caret_package, createdfunctions2)
+kable(d, col.names = c("Caret Package","Created Functions"))
+```
+The results from the **caret** package and the functions  confusionMatrix,  sensitivity,  and specificity are the same.
+
+13.Investigate  the **pROC** package.  Use  it  to  generate  an  ROC  curve for  the  data  set.  How  do  the  results compare with your own functions?
+```{r, comment=FALSE, message=FALSE}
+library(pROC)
+par(mfrow = c(1, 2))
+plot(roc(data_raw$class, data_raw$scored.probability), print.auc = TRUE)
+ROC(data_raw$class,data$scored.probability)
+```
+It appears that our results are similiar to that of the ROC curve for the data set.
