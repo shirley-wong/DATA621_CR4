@@ -70,6 +70,7 @@ library(e1071)
 library(Hmisc)
 library(visdat)
 library(corrplot)
+library(bbmle)
 library(DMwR)
 ```
 
@@ -136,6 +137,9 @@ med <- cleanNames(test)
 ```
 
 **Visualize  the data**
+
+In the histogram plot below, we see that the batting, pitching home-run and batting strike-out variables are bi modal. Also, half of the variables show skewness. We will create a box-cox transformation to build our model to mitigate the skewness.
+
 ```{r, warning=FALSE, eval=TRUE, include=TRUE, echo=TRUE}
 mtd %>%
   gather(variable, value, TARGET_WINS:FIELDING_DP) %>%
@@ -143,10 +147,16 @@ mtd %>%
   geom_density(fill = "indianred4", color="indianred4") + 
   facet_wrap(~variable, scales ="free", ncol = 4) +
   labs(x = element_blank(), y = element_blank())
+```
 
+ #? Write about the plots 
+ 1. sss
+ 2. sss
+ 3. sss
+```{r}
 par(mfrow=c(3,2))   
 for (i in 1:16) {
-      hist(mtd[,i],main=names(mtd[i]),51)
+      hist(mtd[,i],main=names(mtd[i]),xlab=names(mtd[i]),51) # ? 51 mean(mtd$TARGET_WINS)
       boxplot(mtd[,i], main=names(mtd[i]), type="l",horizontal = TRUE)
       
       plot(mtd[,i], mtd$TARGET_WINS, main = names(mtd[i]), xlab=names(mtd[i]))
@@ -154,9 +164,14 @@ for (i in 1:16) {
 }
 ```
 
-In the histogram plot below, we see that the batting, pitching home-run and batting strike-out variables are bi modal. Also, half of the variables show skewness. We will create a box-cox transformation to build our model to mitigate the skewness.
+
 
 **Missing Values**
+
+### NA Values 
+
+We are trying to see how many `NA` is present  in the dataset. 
+
 ```{r, warning=FALSE}
 mtd %>% 
   gather(variable, value) %>%
@@ -170,9 +185,10 @@ mtd %>%
   kable() %>%
   kable_styling()
 ```
-The hit by pitcher varriable is missing over 90% of it's data. 
+The varriable `BATTING_HBP` () hit by pitcher ) is missing over 90% of it's data. 
 
 **Zero Values**
+
 ```{r, warning=FALSE}
 mtd %>% 
   gather(variable, value) %>%
@@ -203,6 +219,8 @@ The box plots reveal that a great majority of the explanatory variables have hig
 The variance of some of the explanatory variables greatly exceeds the variance of the response "win" variable. The dataset has many outlines with some observations that are more extreme than the 1.5 * IQR of the box plot whiskers.
 
 **Checking for skewness in the data**
+
+# ?
 ```{r, warning=FALSE}
 melt(mtd) %>%
   ggplot(aes(x= value)) +
@@ -210,6 +228,7 @@ melt(mtd) %>%
 ```
 
 As per above, there are several variables that are skewed and also there are outliers.
+ #? name the var.
 
 **Finding correlations:**
 ```{r, warning=FALSE}
@@ -222,6 +241,12 @@ mtd %>%
   cor(., use = "complete.obs") %>%
   corrplot(., method = "color", type = "upper", tl.col = "black", diag = FALSE)
 
+
+```
+
+Also, there are some negatively correlated variables. According to the correlation heatmap, the values that correspond most positively are BATTING_H, BATTING_2B, BATTING_HR, BATTING_BB, PITCHING_H, PITCHING_HR, and PITCHING_BB.
+
+```{r}
 mtd %>%
   gather(variable, value, -TARGET_WINS) %>%
   ggplot(., aes(value, TARGET_WINS)) + 
@@ -230,8 +255,8 @@ mtd %>%
   facet_wrap(~variable, scales ="free", ncol = 4) +
   labs(x = element_blank(), y = "Wins")
 ```
-
-Also, there are some negatively correlated variables. According to the correlation heatmap, the values that correspond most positively are BATTING_H, BATTING_2B, BATTING_HR, BATTING_BB, PITCHING_H, PITCHING_HR, and PITCHING_BB.
+ #? note for above plots
+ 
 ```{r}
 cor_res[,1:2]
 ```
@@ -273,6 +298,9 @@ plot(TARGET_WINS ~ FIELDING_DP,mtd)
 
 This shows very few variables are normally distributed.
 
+### Missing value by Graph
+Here will see how much of data is missing in each predictors. 
+
 ```{r, warning=FALSE}
 vis_miss(mtd)
 ```
@@ -302,6 +330,8 @@ Remove the invalid data and prep it for imputation.
 we could "discard" the TEAM_BATTING_HBP,due to the high percentage of missing data; particularly, replacing it by "ZERO" should not be advisable
 since the minimum value recorded is 29 and replacing it with a median value would not be much helpfuldue to high percentage of missing values. We decided not to consider this variable for our study.
 
+ #? 5346 source .. any plot. 
+ 
 ```{r, warning=FALSE}
 remove_bad_values <- function(df){
   # Change 0's to NA so they too can be imputed
@@ -362,7 +392,7 @@ moneyball_test <- mtd[-train_index,]
 ## Model 1 : Kitchen Sink Model/Backward Elimination 
 With all variables to determine the base model provided. This would allow to see which variables are significant in our dataset, and allows to make other models based on that.
 ```{r, eval=TRUE, warning=FALSE}
-
+library(broom)
 # Result to hold all the main info about model
 result<- data.frame("ModelName"=NA,"Variables"=NA,"Removed"=NA,"Adjusted R2"=NA,"P-Value" =NA, "AIC"= NA , "Note"= NA)
 model1 <- lm(TARGET_WINS ~., data=moneyball_train)
@@ -479,6 +509,15 @@ step_back <- MASS::stepAIC(model3, direction="backward", trace = F)
 poly_call <- summary(step_back)$call
 step_back <- lm(poly_call[2], moneyball_train)
 summary(step_back)
+
+result <- rbind(result,
+      c("ModelName" = "step_back",
+       "Variables" = paste0(formula(step_back)[3]),
+       "Removed"= NA,
+       "Adjusted R2" = round(summary(step_back)$adj.r.squared,4),
+       "P-Value" = glance(step_back)$p.value,
+       "AIC" = glance(step_back)$AIC,
+       "Note"= "more vars significant"))
 ```
 ### PLOT
 ```{r}
@@ -500,7 +539,7 @@ Make predictions using the evaluation data set.
 
 Lets review the result for each our our model:
 ```{r}
-datatable(result[,-2])
+datatable(result[,-c(2,3)])
 ```
 
 
@@ -519,7 +558,7 @@ library(corrplot)
 corrplot(cor(mtd),type = 'upper')
 # dput(model1)
 ```
-Result shows that `BATTING_1B`  is corealted with `BATTING_H` , `BATTING_2B` `BATTING_3B` ,  `BATTING_HR` . Here `+1` and `-1` are indicative of sign of coefecifint of the repstive predciort while stating the value for `BATTING_1B`. 
+Result shows that `BATTING_1B`  is corealted with `BATTING_H` , `BATTING_2B` `BATTING_3B` ,  `BATTING_HR` . Here `+1` and `-1` are indicative of sign of coefecifint of the repstive predictor while stating the value for `BATTING_1B`. 
 
 Corrplot also suggest the same except , it doen't show high correlation between `BATTING_H``BATTING_HR`. In our Model2 , we well just follow the p-value significance test and build the model. 
 
@@ -542,12 +581,14 @@ The smallest possible value of VIF is one (absence of multicollinearity). Here w
 
 
 ```{r}
+library(car)
+
 alias(model2)
 
 vif(model2)
 ```
 
-VIF output suggest that BATTING_H, PITCHING_H, BATTING_SO,PITCHING_SO are hihgly impacting model due their colinear relation.
+VIF output suggest that BATTING_H, PITCHING_H, BATTING_SO,PITCHING_SO are highly impacting model due their colinear relation.
 ```{r}
 
 
@@ -605,6 +646,24 @@ data.frame(
 )
 ```
 
+#### Step back
+ VIF result suggest that all the predictors in the model `step_back` have no multicolinearirty exist in them. 
+ 
+```{r}
+# model5 <- lm(TARGET_WINS~.   -PITCHING_SO	 -PITCHING_BB -BATTING_H- BATTING_2B -BATTING_3B-  BATTING_HR, data= moneyball_train)
+
+summary(step_back)
+vif(step_back)
+
+predictions <- step_back %>% predict(moneyball_test)
+# Model performance
+data.frame(
+  RMSE = RMSE(predictions, moneyball_test$TARGET_WINS,na.rm = TRUE),
+  R2 = R2(predictions,moneyball_test$TARGET_WINS,na.rm = TRUE)
+)
+```
+
+
 Lets only consider Model with beter RMSE and R2 and check it with AIC test:
 
 | Model Name | RMSE    | R^2     |
@@ -614,16 +673,23 @@ Lets only consider Model with beter RMSE and R2 and check it with AIC test:
 | model3     | 10.0631 | 0.40604 |
 | model4     | 9.92225 | 0.41098 |
 | model5     | 9.99109 | 0.40295 |
+| Step Back  | 9.77083 | 0.428734|
 
 ```{r}
-bbmle::AICctab(model4,model5,delta=TRUE, weights=TRUE)
+bbmle::AICctab(step_back,model4,model5,delta=TRUE, weights=TRUE)
 
 ```
 
-In Both test  `Model1` is doing well, but since its not a parsomonious model we decided to check among model 4 and 5. Which is a parsomonious model, with no multicolnearity among the predictors. 
+In Both test  `Model1` is doing well, but since its not a parsomonious model we decided to check among `model4` and `model5` and `step_back`. Which is a parsomonious model, with no multicolnearity among the predictors. 
 We also note how multicolinearity in models were impacting its effect on overall perfromcne of the model.
 
-Selected Model = `model4`
+Selected Model = `step_back`
+
+## Run the `step_back` model on Eval data.
+```{r}
+
+```
+
  <REMOVE??> From the three models, model3 is a more parsimonious model. There is no significant difference in R2, Adjusted R2 and RMSE even when i did the treatment for multi-collinearity.
 
 ### Model 1 : Kitchen Sink Model  
