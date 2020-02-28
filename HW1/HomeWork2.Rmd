@@ -1,7 +1,7 @@
 ---
 title: 'DATA 621 01[46893] : HomeWork1'
-subtitle: CUNY_MSDA_ DATA 621_Homework #1 (Moneyball)
-authors: "Rajwant Mishra, Priya Shaji, Debabrata Kabiraj, Isabel Ramesar, Sin Ying Wong and Fan Xu"
+subtitle: CUNY_MSDA_DATA 621_Homework #1 (Moneyball)
+author: "Rajwant Mishra, Priya Shaji, Debabrata Kabiraj, Isabel Ramesar, Sin Ying Wong and Fan Xu"
 date: "Februray 1, 2020"
 #output: powerpoint_presentation
 output: 
