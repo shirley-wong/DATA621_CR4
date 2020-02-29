@@ -1,6 +1,6 @@
 ---
 title: 'DATA 621 01[46893] : HomeWork1'
-subtitle: CUNY_MSDA_DATA_621_Homework_CR4
+subtitle: CUNY_MSDA_DATA 621_Homework #1 (Moneyball)
 author: "Rajwant Mishra, Priya Shaji, Debabrata Kabiraj, Isabel Ramesar, Sin Ying Wong and Fan Xu"
 date: "Februray 1, 2020"
 #output: powerpoint_presentation
@@ -82,7 +82,7 @@ library(corrplot)
 
 The data set describes baseball team statistics for the years 1871 to 2006 inclusive. Each record in the data set represents the performance of the team for the given year adjusted to the current length of the season - 162 games. The data set includes 16 variables and the training set includes 2,276 records.
 
-Load the data and understand the data by using some stats and plott
+##Load the data and understand the data by using some stats and plott
 ```{r, warning=FALSE, message=FALSE}
 mtd <- read.csv("https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW1/Deb/moneyball-training-data.csv")
 med <- read.csv("https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW1/Deb/moneyball-evaluation-data.csv")
@@ -90,7 +90,7 @@ med <- read.csv("https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/mas
 
 ## View rows and columns, variable types
 
-Glimpse of the data shows that all variables are numeric, no ctegorical variable is present here. We do lots of NA for few predcitors in the data set. In our further analysis we will try to identify :
+Glimpse of the data shows that all variables are numeric, no ctegorical variable is present here. We do lots of NA for few predcitors in the data set. In our furthe analysis we will try to identify :
 
 + Structure of the each predictors 
 + How Many NA and Zero , is it significant to remove them or replace them with some predicted value. 
@@ -99,58 +99,58 @@ Glimpse of the data shows that all variables are numeric, no ctegorical variable
 ```{r, warning=FALSE, message=FALSE}
 glimpse(mtd)
 ```
-
 Sample 6 rows with sample 7 columns
 ```{r, warning=FALSE, message=FALSE}
 head(mtd)
 ```
 
-Show entire dataset of training data
 ```{r, warning=FALSE, message=FALSE}
-DT::datatable(mtd, options = list(pagelength=5))
-```
 
-Show entire dataset of evaluation data
-```{r, warning=FALSE, message=FALSE}
-DT::datatable(med, options = list(pagelength=5))
+# Show entire dataset
+# DT::datatable(mtd, options = list(pagelength=5))
+# #DT::datatable(med, options = list(pagelength=5))
 ```
 
 ## Structure of data 
 
-Dimension of Test dataset is , `r paste(dim(mtd),collapse=" X ") ` with `r count(mtd)[[1]] ` number of observation in test data.
+"Dimension of Test dataset is", `r paste(dim(mtd),collapse=" X ")` with `r count(mtd) ` number of observation in test data.
 
-Summary of the test data shows very clearly that we have six predictors which has NA and  ` BATTING_HBP` and `BASERUN_CS` have the max number of NAs in the data set.
+Sumamry of the test data shows very clearly that we have six predictors which has NA and  ` BATTING_HBP` and `BASERUN_CS` have the max number of NAs in the data set.
 ```{r, warning=FALSE, message=FALSE}
-paste("Dimension of dataset", dim(mtd))
-paste("Count of dataset", count(mtd))
+# paste("Dimension of dataset", dim(mtd))
+# paste("Count of dataset", count(mtd))
 summary(mtd)
-describe(mtd)
-names(mtd)
-str(mtd)
+# describe(mtd)
+# names(mtd)
+# str(mtd)
+
 ```
 
-## Mean and Median of the data
-
+# Mean and Median of the data
 ```{r}
+
 mtd %>%
   summary() %>%
   kable() %>%
   kable_styling()
+
 ```
 
 `BATTING_HBP` is showing very close mean and median vlaue, and we suspect its due less number of datapoints. Remember we noted highest number of NA in this predictor.  Apart from `FIELDING_E` we don't see any big differnce in the mean and median of the data. 
 
-## Rename Columns
+## Rename COlumns
 
-Here we removing the `TEAM_` from the column name so that we can display it in the plots, and make it easy to read. 
+Here we removing the `TEAM_` from the column name so that we can disaply it in the plots, and make it easy to read. 
 
-Names Before: `r names(mtd)` <br>
+Names Before: `r names(train) `
+
 
 ```{r}
 train <- mtd
 test <- med
 train$INDEX <- NULL
 test$INDEX <- NULL
+
 
 cleanNames <- function(train) {
     name_list <- names(train)
@@ -161,11 +161,13 @@ cleanNames <- function(train) {
 
 mtd <- cleanNames(train)
 med <- cleanNames(test)
+
 ```
 
-Names After : `r names(mtd) `
 
-## Visualize the data
+Names After : `r names(train) `
+
+##Visualize  the data
 
 ```{r, warning=FALSE, eval=TRUE, include=TRUE, echo=TRUE}
 mtd %>%
@@ -182,14 +184,10 @@ In the histogram plot above, we see that the batting, pitching home-run and batt
 scatterplot3d(mtd$TARGET_WINS, mtd$BATTING_2B, mtd$BATTING_BB, pch = 20, highlight.3d = TRUE, type = "h", main = "3D ScatterPlots")
 ```
 
-The above 3-D scatter plot, shows the data variance between the `TARGET_WINS`, `TEAM_BATTING_2B` and `TEAM_BATTING_BB` to provide a comparative 3D view.
-
-##  Multivariate Plot
-
-We will evalaute ``Frequency (Histogram of Variables)`` and ``Regression fit`` of each predictors with `TARGET_WIN`.
-
+The above 3-D scatter plot, shows the data variance between the `TARGET_WINS`, `TEAM_BATTING_2B` and `TEAM_BATTING_BB` to provide a comparative view.
+ 
 ```{r, warning=FALSE, message=FALSE}
-par(mfrow=c(3,3))   
+par(mfrow=c(3,2))   
 for (i in 1:16) {
       hist(mtd[,i],main=names(mtd[i]),xlab=names(mtd[i]),breaks = 51)
       boxplot(mtd[,i], main=names(mtd[i]), type="l",horizontal = TRUE)
@@ -199,9 +197,9 @@ for (i in 1:16) {
 }
 ```
 
-As can be seen from above histogram, boxplot and scatter plot with regression line shows the spread of the data points. More than half of the variables show skewness. A box-cox transformation may help to mitigate the skewness. Plot also shows very few variables are normally distributed.
+As can be seen from above histogram, boxplot and scatter plot with regression line shows the spread of the data points. More than half of the variables show skewness. A box-cox transformation may help to mitigate the skewness.
 
-## Missing or NA Values
+**Missing or NA Values**
 
 We are trying to see how many `NA` is present  in the dataset. 
 
@@ -214,12 +212,13 @@ mtd %>%
   mutate(percent = n / nrow(mtd) * 100) %>%
   mutate(percent = paste0(round(percent, ifelse(percent < 10, 1, 0)), "%")) %>%
   arrange(desc(n)) %>%
+#  rename(`Variable Missing Data`=variable,`Number of Records`=n,`Share of Total`=percent) %>%
   kable() %>%
   kable_styling()
 ```
 The variable `BATTING_HBP` (hit by pitcher) is missing over 90% of it's data. 
 
-## Zero Values
+**Zero Values**
 
 ```{r, warning=FALSE, message=FALSE}
 mtd %>% 
@@ -230,12 +229,13 @@ mtd %>%
   mutate(percent = n / nrow(mtd) * 100) %>%
   mutate(percent = paste0(round(percent, ifelse(percent < 10, 1, 0)), "%")) %>%
   arrange(desc(n)) %>%
+#  rename("Variable With Zeros"=variable,"Number of Records"=n,"Share of Total"=percent) %>%
   kable() %>%
   kable_styling()
 ```
-As can be inferred from above, there are very few zero values exists.
+As can be inferred from above, there are Very few zero values exists.
 
-## Checking for outliers
+**Checking for outliers**
 ```{r, warning=FALSE, message=FALSE}
 ggplot(stack(mtd), aes(x = ind, y = values)) +
   geom_boxplot() +
@@ -249,7 +249,7 @@ The box plots reveal that a great majority of the explanatory variables have hig
 
 The variance of some of the explanatory variables greatly exceeds the variance of the response "win" variable. The dataset has many outlines with some observations that are more extreme than the 1.5 * IQR of the box plot whiskers.
 
-## Checking for skewness in the data
+**Checking for skewness in the data**
 ```{r, warning=FALSE, message=FALSE}
 melt(mtd) %>%
   ggplot(aes(x= value)) +
@@ -258,8 +258,7 @@ melt(mtd) %>%
 
 As per above, there are several variables like `PITCHING_H`, `PITCHING_BB`, `PITCHING_SO` and `FIELDING_E` are extremely skewed as there are many outliers.
 
-## Finding correlations
-
+**Finding correlations:**
 Below shows the comparative correlations between the 16 variables as it shows the correlation coefficients and thus find correlated variables. Whichever adhere to a fitted straight red line well, ie. change in synch with each other. If the points lie close to the line but the line is curved, it's good nonlinear association and one can still be defined by other. Each individual plot shows the relationship between the variable in the horizontal vs the vertical of the grid. Each individual plot shows the relationship between the variable in the horizontal vs the vertical of the grid, whereas the diagonal is showing a histogram of each variable.
 
 ```{r, warning=FALSE, message=FALSE}
@@ -302,7 +301,8 @@ cor_res[,1:2]
 
 Above shows the correlation coefficient of each variable compared to `TARGET_WINS` and `BATTING_H`.
 
-```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+**Histogram of Variables**
+```{r, warning=FALSE, message=FALSE}
 hist.data.frame(mtd)
 
 par(mfrow=c(2,3))
@@ -336,7 +336,9 @@ plot(TARGET_WINS ~ FIELDING_DP,mtd)
   abline(lm(TARGET_WINS ~ FIELDING_DP,data = mtd),col="blue")
 ```
 
-## Missing value by Graph
+This shows very few variables are normally distributed.
+
+### Missing value by Graph
 Here will see how much of data is missing in each predictors. 
 
 ```{r, warning=FALSE, message=FALSE}
@@ -347,9 +349,8 @@ Here from the plots we can see  outliers in PITCHING_H,PITCHING_BB and PITCHING_
 
 Also, since BATTING_H is a combination of BATTING_2B, BATTING_3B, BATTING_HR (and also includes batted singles), we will create a new variable BATTING_1B equaling BATTING_H - BATTING_2B - BATTING_3B - BATTING_HR and after creating this we will remove BATTING_H
 
-## Initial Observations
+**Initial Observations**
 
->>
 - Response variable (TARGET_WINS) looks to be normally distributed which means there are good teams, bad teams as well as average teams.
 - There are also quite a few variables with missing values. We may need to deal with these in order to have the largest data set possible for modeling.
 - A couple variables are bimodal (TEAM_BATTING_HR, TEAM_BATTING_SO, TEAM_PITCHING_HR). This may be a challenge as some of them are missing values and that may be a challenge in filling in missing values.
@@ -357,14 +358,18 @@ Also, since BATTING_H is a combination of BATTING_2B, BATTING_3B, BATTING_HR (an
 - Dataset covers a wide time period spanning across multiple "eras" of baseball. 
 
 # DATA PREPARATION
+Describe how you have transformed the data by changing the original variables or creating new variables. If you did transform the data or create new variables, discuss why you did this. Here are some possible transformations.
+a. Fix missing values (maybe with a Mean or Median value)
+b. Create flags to suggest if a variable was missing
+c. Transform data by putting it into buckets
+d. Mathematical transforms such as log or square root (or use Box-Cox)
+e. Combine variables (such as ratios or adding or multiplying) to create new variables
 
-## Fixing Missing/Zero Values
-
-+ Remove the invalid data and prepare it for imputation. 
-
-+ We could "discard" the `TEAM_BATTING_HBP`,due to the `high percentage of missing data`; particularly, replacing it by "ZERO" should not be advisable since the minimum value recorded is 29 and replacing it with a median value would not be much helpful due to high percentage of missing values. *We decided not to consider this variable for our study*.
-
-+ A typical professional league baseball game has 9 innings (extra innings come to play in the event of a tie) in length, and in each inning one can only pitch 3 strikeouts. There have been a maximum of 27 potential strikeouts upto a maximum of by 162 games for each of the 30 teams in the American League (AL) and National League (NL), played over approximately six months in Major League Baseball (MLB) season. Therefore having more than 4374 strikeouts (9x3x162) is not possible. Incidentally, the maximum strikeouts in any baseball season has been 513 by Matt Kilroy in the year 1886	as part of Baltimore Orioles within American Association League.
+**Fixing Missing/Zero Values**
+- Remove the invalid data and prep it for imputation. 
+- We could "discard" the TEAM_BATTING_HBP,due to the high percentage of missing data; particularly, replacing it by "ZERO" should not be advisable
+since the minimum value recorded is 29 and replacing it with a median value would not be much helpful due to high percentage of missing values. We decided not to consider this variable for our study.
+- A typical professional league baseball game has 9 innings (extra innings come to play in the event of a tie) in length, and in each inning one can only pitch 3 strikeouts. There have been a maximum of 27 potential strikeouts upto a maximum of by 162 games for each of the 30 teams in the American League (AL) and National League (NL), played over approximately six months in Major League Baseball (MLB) season. Therefore having more than 4374 strikeouts (9x3x162) is not possible. Incidentally, the maximum strikeouts in any baseball season has been 513 by Matt Kilroy in the year 1886	as part of Baltimore Orioles within American Association League,
 
 ```{r, warning=FALSE, message=FALSE}
 remove_bad_values <- function(df){
@@ -381,12 +386,7 @@ mtd <- remove_bad_values(mtd)
 med <- remove_bad_values(med) %>% na.omit()
 ```
 
-## Imputing the values using KNN
-
-*K-Nearest Neighbors (KNN)* : K Nearest Neighbors is an algorithm that is useful for matching a point with its closest k neighbors in a multi-dimensional space. Therefore, a point value can be approximated by the values of the points that are closest to it, based on other variables.
-
-  The KNN imputation algorithm helps in imputing missing data by finding the k closest neighbors to the observation with missing data and then imputing them based on the the non-missing values in the neighbors. Most common method used for KNN is weighted mean
-
+**Imputing the values using KNN**
 ```{r, eval=TRUE, warning=FALSE, message=FALSE}
 set.seed(42)
 knn <- mtd %>% DMwR::knnImputation()
@@ -404,22 +404,7 @@ impute_values <- function(df, knn){
   return(df)
 }
 imputed_mtd_Data <- impute_values(mtd, knn)
-```
 
-As can be observed from above KNN imputation (result table below ), the models did not behave favorably resulting in high RMSE and low R squared which results in poor prediction due to generation of highly correlated data.
-
-| Model Name | RMSE    | R^2      |
-|------------|---------|----------|
-| model1     | 13.1079 | 0.271328 |
-| model2     | 13.2033 | 0.26092  |
-| model3     | 13.1079 | 0.27133  |
-| model4     | 13.3301 | 0.24664  |
-| model5     | 13.2601 | 0.25328  |
-| model6     | 13.0805 | 0.27403  |
-
-Since `BATTING_H` is a combination of `BATTING_2B`, `BATTING_3B`, `BATTING_HR` (and also includes batted singles), we will create a new variable `BATTING_1B` equaling `BATTING_H - BATTING_2B - BATTING_3B - BATTING_HR` and after creating this we will remove `BATTING_H`
-
-```{r}
 # Including batting singles
 add_features <- function(df){
   df %>%
@@ -431,8 +416,10 @@ med <- add_features(med)
 ```
 
 # BUILD MODELS
+Using the training data set, build at least three different multiple linear regression models, using different variables (or the same variables with different transformations). Since we have not yet covered automated variable selection methods, you should select the variables manually (unless you previously learned Forward or Stepwise selection, etc.). Since you manually selected a variable for inclusion into the model or exclusion into the model,
+indicate why this was done.
 
-*Kitchen Sink Model* : With all variables to determine the base model provided. This would allow to see which variables are significant in our dataset, and allows to make other models based on that.
+Discuss the coefficients in the models, do they make sense? For example, if a team hits a lot of Home Runs, it would be reasonably expected that such a team would win more games. However, if the coefficient is negative (suggesting that the team would lose more games), then that needs to be discussed. Are you keeping the model even though it is counter intuitive? Why? The boss needs to know.
 
 ```{r, eval=TRUE, warning=FALSE, message=FALSE}
 set.seed(42)
@@ -441,11 +428,8 @@ moneyball_train <- mtd[train_index,]
 moneyball_test <- mtd[-train_index,]
 ```
   
-## Model 1 (Kitchen Sink Model/Backward Elimination) 
-
-Predictor: All Variables
-Response : TARGET_WINS
-
+## Model 1 : Kitchen Sink Model/Backward Elimination 
+With all variables to determine the base model provided. This would allow to see which variables are significant in our dataset, and allows to make other models based on that.
 ```{r, eval=TRUE, warning=FALSE}
 # Result to hold all the main info about model
 result<- data.frame("ModelName"=NA,"Variables"=NA,"Removed"=NA,"Adjusted R2"=NA,"P-Value" =NA, "AIC"= NA , "Note"= NA)
@@ -465,29 +449,14 @@ result <- rbind(result,
 
 It does a fairly good job predicting, but there are a lot of variables that are not statistically significant. We see the that P-value is less than .05 which makes it one of the possible model but not all the coefficients of the `model1` are significant. 
 
-### Plot
+### PLOT
 ```{r, warning=FALSE, message=FALSE}
 par(mfrow=c(2,2))
 plot(model1)
 ```
 
-From the above residual plots let's analyze if the assumptions of our model is correct or not:
-
-1)  The variability of the points is approximately the same in the mid values of x with the decrese of variations towards the two end points which depicts that the plot is unbaised and homoscedastic except for few outliers.
-
-2) Normal q-q plot fulfills the assumptions of normality.
-
-But since few coefficients of the model are not significant, let's see if assumptions of other models are true.
-
 ## Model 2 : Simple Model
 With only the significant variables: Pick variables that had high correlations and include the pitching variables 
-
-`Predictor`: BATTING_H  + BATTING_3B  + BATTING_HR + BATTING_BB  + BATTING_SO + 
-                           BASERUN_SB + PITCHING_SO + PITCHING_H + PITCHING_SO + 
-                           FIELDING_E + FIELDING_DP
-`Response` : TARGET_WINS
-
-
 ```{r, eval=TRUE, warning=FALSE, message=FALSE}
 model2 <- lm(TARGET_WINS ~ BATTING_H  + BATTING_3B  + BATTING_HR + BATTING_BB  + BATTING_SO + 
                            BASERUN_SB + PITCHING_SO + PITCHING_H + PITCHING_SO + 
@@ -504,31 +473,15 @@ result <- rbind(result,
                  "AIC" = glance(model2)$AIC,
                  "Note"= "All are significant"))
 ```
-
-For model 2, since we have only considered significant values from model 1, Multiple R-squared value is 0.39 which is a good representation that our model fits the data. 
-
-This model also does a good job predicting, and all variables are statistically significant. 
-
-### Plot
+### PLOT
 ```{r, warning=FALSE, message=FALSE}
 par(mfrow=c(2,2))
 plot(model2)
 ```
 
-From the above residual plots let's analyze if the assumptions of our model is correct or not:
-
-1)  The variability of the points is approximately the same throughout the values of x which depicts that this plot is also unbaised and homoscedastic with very few(minimum) outliers.
-
-2) Normal q-q plot fulfills the assumptions of normality.
-
-From the above points , assumptions of model 2 is true, let's see if assumptions of our next models are true.
-
 ## Model 3 : Higher Order Stepwise Regression
 
 Only taking the variable from the Model1 that are really significant.
-
-`Predictor`: BATTING_2B+BATTING_3B+BASERUN_SB+BASERUN_CS+FIELDING_E+FIELDING_DP <br>
-`Response` : TARGET_WINS
 
 ```{r, warning=FALSE, message=FALSE}
 model3a <- lm(TARGET_WINS~BATTING_2B+BATTING_3B+BASERUN_SB+BASERUN_CS+FIELDING_E+FIELDING_DP,  data=moneyball_train)
@@ -543,12 +496,7 @@ result <- rbind(result,
                  "P-Value" = glance(model3a)$p.value,
                  "AIC" = glance(model3a)$AIC,
                  "Note"= "BATTING_3B,FIELDING_E ,BATTING_2B,FIELDING_DP are significant"))
-```
 
-`Predictor`: BATTING_3B + FIELDING_E + BATTING_2B + FIELDING_DP <br>
-`Response` : TARGET_WINS
-
-```{r}
 model3b <- lm(TARGET_WINS~BATTING_3B + FIELDING_E + BATTING_2B + FIELDING_DP,  data=moneyball_train)
 summary(model3b)
 result <- rbind(result,
@@ -561,31 +509,24 @@ result <- rbind(result,
                  "Note"= "All are significant"))
 ```
 
-As we see above, in Model3a in which "BATTING_3B,FIELDING_E ,BATTING_2B,FIELDING_DP" are significant and are considered in the model. We get Multiple R-squared as 0.17.
-
-In Model3b we chose "BATTING_3B + FIELDING_E + BATTING_2B + FIELDING_DP" as they are significant coefficients in model3a. We get Multiple R-squared as 0.11
-
 Further reducing the variables(TEAM_PITCHING_SO and TEAM_BATTING_SO are having high correlation, TEAM_BATTING_H and TEAM_PITCHING_H are also having high correlation, TEAM_BATTING_SO and TEAM_PITCHING_SO are also having high correlation):
-
-`Predictor`: BATTING_1B + BATTING_2B + BATTING_3B + BATTING_HR + BATTING_BB + BATTING_SO + BASERUN_SB + BASERUN_CS +   PITCHING_H + PITCHING_HR + PITCHING_BB + PITCHING_SO + FIELDING_E + FIELDING_DP + Quadratic  <br>
-`Response` : TARGET_WINS
-
 ```{r, eval=TRUE, warning=FALSE, message=FALSE}
-model3 <- lm(TARGET_WINS ~ BATTING_1B + BATTING_2B + BATTING_3B + BATTING_HR + BATTING_BB + BATTING_SO +  BASERUN_SB + BASERUN_CS + 
+model3 <- lm(TARGET_WINS ~ BATTING_1B + BATTING_2B + BATTING_3B + BATTING_HR + BATTING_BB + BATTING_SO + 
+                           BASERUN_SB + BASERUN_CS + 
                            PITCHING_H + PITCHING_HR + PITCHING_BB + PITCHING_SO + 
-                           FIELDING_E + FIELDING_DP+
-+I(BATTING_1B^2) + I(BATTING_2B^2) + I(BATTING_3B^2) + I(BATTING_HR^2) + I(BATTING_BB^2) + I(BATTING_SO^2) +
-+I(BASERUN_SB^2) + I(BASERUN_CS^2) +
-+I(PITCHING_H^2) + I(PITCHING_HR^2) + I(PITCHING_BB^2) + I(PITCHING_SO^2) +
-+I(FIELDING_E^2) + I(FIELDING_DP^2) +
-+I(BATTING_2B^3) + I(BATTING_3B^3) + I(BATTING_HR^3) + I(BATTING_BB^3) + I(BATTING_SO^3) +
-+I(BASERUN_SB^3) + I(BASERUN_CS^3) +
-+I(PITCHING_H^3) + I(PITCHING_HR^3) + I(PITCHING_BB^3) + I(PITCHING_SO^3) +
-+I(FIELDING_E^3) + I(FIELDING_DP^3) +
-+I(BATTING_1B^3) + I(BATTING_2B^4) + I(BATTING_3B^4) + I(BATTING_HR^4) + I(BATTING_BB^4) + I(BATTING_SO^4) +
-+I(BASERUN_SB^4) + I(BASERUN_CS^4) +
-+I(PITCHING_H^4) + I(PITCHING_HR^4) + I(PITCHING_BB^4) + I(PITCHING_SO^4) +
-+I(FIELDING_E^4) + I(FIELDING_DP^4) + I(BATTING_1B^4), data=moneyball_train)
+                           FIELDING_E + FIELDING_DP, data=moneyball_train)
+#+I(BATTING_1B^2) + I(BATTING_2B^2) + I(BATTING_3B^2) + I(BATTING_HR^2) + I(BATTING_BB^2) + I(BATTING_SO^2) + 
+#+I(BASERUN_SB^2) + I(BASERUN_CS^2) + 
+#+I(PITCHING_H^2) + I(PITCHING_HR^2) + I(PITCHING_BB^2) + I(PITCHING_SO^2) + 
+#+I(FIELDING_E^2) + I(FIELDING_DP^2) + 
+#+I(BATTING_2B^3) + I(BATTING_3B^3) + I(BATTING_HR^3) + I(BATTING_BB^3) + I(BATTING_SO^3) + 
+#+I(BASERUN_SB^3) + I(BASERUN_CS^3) + 
+#+I(PITCHING_H^3) + I(PITCHING_HR^3) + I(PITCHING_BB^3) + I(PITCHING_SO^3) + 
+#+I(FIELDING_E^3) + I(FIELDING_DP^3) + 
+#+I(BATTING_1B^3) + I(BATTING_2B^4) + I(BATTING_3B^4) + I(BATTING_HR^4) + I(BATTING_BB^4) + I(BATTING_SO^4) + 
+#+I(BASERUN_SB^4) + I(BASERUN_CS^4) + 
+#+I(PITCHING_H^4) + I(PITCHING_HR^4) + I(PITCHING_BB^4) + I(PITCHING_SO^4) + 
+#+I(FIELDING_E^4) + I(FIELDING_DP^4) + I(BATTING_1B^4)
 
 summary(model3)
 result <- rbind(result,
@@ -596,13 +537,8 @@ result <- rbind(result,
                  "P-Value" = glance(model3)$p.value,
                  "AIC" = glance(model3)$AIC,
                  "Note"= "Nothing is significant"))
-```
 
-## StepBack Model
-
-For StepBack Model, we have used MASS::stepAIC() function, which will generate the variables to create a system generated model. And as we see all the coefficients generated are significant.
-
-```{r}
+# StepBack Model
 step_back <- MASS::stepAIC(model3, direction="backward", trace = F)
 poly_call <- summary(step_back)$call
 step_back <- lm(poly_call[2], moneyball_train)
@@ -618,41 +554,17 @@ result <- rbind(result,
                  "Note"= "more vars significant"))
 ```
 
-For Model3, we take quadratic equation of predictors to analyze if multicollinearity exist . As we see, p-value is significant, so multicollinearity exist between the predictors.
-
-### Plot Model3, Model3a, Model3b
-
+### Plot Model 3
 ```{r, warning=FALSE, message=FALSE}
 par(mfrow=c(2,2))
-plot(model3,which = c(1,2,3,4), caption = list("Model 3"))
-plot(model3a,which = c(1,2,3,4), caption = list("Model 3a"))
-plot(model3b,which = c(1,2,3,4), caption = list("Model 3b"))
+plot(model3)
+plot(model3a)
+plot(model3b)
 ```
-
-From the above residual plots let's analyze if the assumptions of our model is correct or not:
-
-**Model3:**
-
-1)  The variability of the points is approximately the same throughout the values of x with some outliers towards for the ends and the variability also differes in two ends. We can say that the model is homoscedastic.
-2) Normal q-q plot fulfills the assumptions of normality with the exception of outliers.
-
-**Model3a :**
-
-"BATTING_3B,FIELDING_E ,BATTING_2B,FIELDING_DP 
-
-1) Among the ponts scattered, variability of few points are not constant throughout.
-
-2) Normal q-q plot fulfills the assumptions of normality with the exception of outliers.
-
-**Model3b :**
-
-For Model3b, we choose the significant variables from model3a, 
-
-1) The points scattered does not have a constant variability, which shows that the assumptions of this model does not hold true
 
 # SELECT MODELS 
 
-We have created couple of models in the last step, let's review the result for each of our model:
+We have craeted couple of models in the last step, let's review the result for each our our model:
 
 ```{r, warning=FALSE, message=FALSE}
 datatable(result[,-c(2,3)])
@@ -672,10 +584,9 @@ alias(model1)
 corrplot(cor(mtd),type = 'upper')
 # dput(model1)
 ```
+Result shows that `BATTING_1B`  is corealted with `BATTING_H` , `BATTING_2B` `BATTING_3B` ,  `BATTING_HR` . Here `+1` and `-1` are indicative of sign of coefecifint of the repstive predictor while stating the value for `BATTING_1B`. 
 
-Result shows that `BATTING_1B` is correlated with `BATTING_H`, `BATTING_2B`,`BATTING_3B`, `BATTING_HR`. Here `+1` and `-1` are indicative of sign of coeffecient of the repitive predictor while stating the value for `BATTING_1B`. 
-
-Corrplot also suggest the same except, it doesn't show high correlation between `BATTING_H``BATTING_HR`. In our Model2 , we will just follow the p-value significance test and build the model. 
+Corrplot also suggest the same except , it doen't show high correlation between `BATTING_H``BATTING_HR`. In our Model2 , we well just follow the p-value significance test and build the model. 
 
 ```{r, warning=FALSE, message=FALSE}
 # Make predictions
@@ -690,7 +601,7 @@ data.frame(
 
 ### Model 2
 
-Here `alias` doesn't suggest any correlated predictor. Now we can run VIF (variance inflation factor), which measures how much the variance of a regression coefficient is inflated due to multicollinearity in the model.
+Here `alias` doen't suggest any correlated predictor. Now we can run VIF (variance inflation factor), which measures how much the variance of a regression coefficient is inflated due to multicollinearity in the model.
 The smallest possible value of VIF is one (absence of multicollinearity). Here we will look for VIF value, if that exceeds 5 or 10 indicates a problematic amount of collinearity. "Read More"['http://www.sthda.com/english/articles/39-regression-model-diagnostics/160-multicollinearity-essentials-and-vif-in-r/']
 
 ```{r, warning=FALSE, message=FALSE}
@@ -716,7 +627,6 @@ data.frame(
 ```{r, warning=FALSE, message=FALSE}
 # Make predictions
 predictions <- model3 %>% predict(moneyball_test)
-
 # Model performance
 data.frame(
   RMSE = RMSE(predictions, moneyball_test$TARGET_WINS,na.rm = TRUE),
@@ -802,10 +712,17 @@ Run the `step_backward` model on Eval data.
 ```{r, warning=FALSE, message=FALSE}
 model <- lm(BATTING_H~., data=med)
 
-data.table(cbind(data.table("Predicted"= predict(step_back,med)),med))
+# StepBack Model
+#step_backward_model <- MASS::stepAIC(model, direction="backward", trace = F)
+#poly_call <- summary(step_backward_model)$call
+#step_backward_model <- lm(poly_call[2], moneyball_train)
+#summary(step_backward_model)
+
+step_backward_model <- step (model, direction = "backward")
+summary(step_backward_model)
 ```
 
-From the three models, model3 is a more parsimonious model. There is no significant difference in R2, Adjusted R2 and RMSE even when the treatment for multi-collinearity was done.
+From the three models, model3 is a more parsimonious model. There is no significant difference in R2, Adjusted R2 and RMSE even when i did the treatment for multi-collinearity.
 
 ### Model 1 : Kitchen Sink Model  
 ```{r, warning=FALSE, message=FALSE}
@@ -872,3 +789,9 @@ moneyball_test %>%
   kable() %>%
   kable_styling()
 ```
+
+```{r}
+
+
+```
+
