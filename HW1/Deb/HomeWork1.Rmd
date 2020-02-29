@@ -624,9 +624,9 @@ For Model3, we take quadratic equation of predictors to analyze if multicollinea
 
 ```{r, warning=FALSE, message=FALSE}
 par(mfrow=c(2,2))
-plot(model3, caption=list("Model 3"))
-plot(model3a, caption=list("Model 3a"))
-plot(model3b, caption=list("Model 3b"))
+plot(model3,which = c(1,2,3,4), caption = list("Model 3"))
+plot(model3a,which = c(1,2,3,4), caption = list("Model 3a"))
+plot(model3b,which = c(1,2,3,4), caption = list("Model 3b"))
 ```
 
 From the above residual plots let's analyze if the assumptions of our model is correct or not:
