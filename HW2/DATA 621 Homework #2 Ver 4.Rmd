@@ -1,0 +1,349 @@
+---
+title: 'DATA 621 Homework #2'
+author: 'Critical Thinking Group 4: Rajwant Mishra, Priya Shaji, Debabrata Kabiraj,
+  Isabel Ramesar, Sin Ying Wong and Fan Xu'
+date: "2/20/2020"
+output:
+  rmdformats::readthedown:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    number_sections: yes
+    smooth_scroll: yes
+    theme: united
+    toc_collapsed: yes
+    toc_depth: 5
+    toc_float: yes
+  word_document:
+    toc: yes
+    toc_depth: '5'
+  pdf_document:
+    extra_dependencies:
+    - geometry
+    - multicol
+    - multirow
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_collapsed: yes
+    toc_float: yes
+theme: lumen
+number_sections: yes
+toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning = FALSE, message=FALSE}
+library(tidyverse)
+
+```
+
+# Overview
+In this homework assignment, you will work through various classification metrics. You will be asked to create functions in R to carry out the various calculations. You will also investigate some functions in packages that will let you obtain the equivalent results. Finally, you will create graphical output that also can be used to evaluate the output of classification models, such as binary logistic regression.
+
+Supplemental Material:
+
+- Applied Predictive Modeling, Ch. 11 (provided as a PDF file).
+- Web tutorials: [http://www.saedsayad.com/model_evaluation_c.htm](http://www.saedsayad.com/model_evaluation_c.htm)
+
+# Deliverables
+- Upon following the instructions below, use your created R functions and the other packages to generate the classification metrics for the provided data set. A write-up of your solutions submitted in PDF format.
+
+# Task 1: Download Data Set
+1. Download the classification output data set (attached in Blackboard to the assignment).
+
+```{r Import Data, message=FALSE, warning=FALSE}
+data_raw <- read_csv('https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW2/classification-output-data.csv?_sm_au_=iVVW2ql3rPKlbr26kRvMGK3JRp2ft')
+
+data_raw
+```
+
+# Task 2: Confusion Matrix 
+2. The data set has three key columns we will use:
+- class: the actual class for the observation
+- scored.class: the predicted class for the observation (based on a threshold of 0.5)
+- scored.probability: the predicted probability of success for the observation
+
+```{r }
+data <- data_raw %>% 
+  select(class, scored.class, scored.probability)
+data
+```
+
+Use the table() function to get the raw confusion matrix for this scored dataset. Make sure you understand the output. In particular, do the rows represent the actual or predicted class? The columns?
+
+  **Answer**: the field `class` (the rows) represent the actual class, and the field `scored.class` (the columns) represent the predicted class.
+```{r }
+data %>% 
+  select(class, scored.class) %>%
+  mutate(class = recode(class,
+                        '0' = 'Actual Negative', 
+                        '1' = 'Actual Positive'),
+         scored.class = recode(scored.class,
+                               '0' = 'Predicted Negative', 
+                               '1' = 'Predicted Positive')) %>%
+  table()
+
+```
+
+
+# Task 3: Accuracy
+3. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the accuracy of the predictions.
+
+  \center$Accuracy = \displaystyle \frac{TP+TN}{TP+FP+TN+FN}$\center
+  
+  **Answer**: 
+  Accuracy means the closeness of the measurements to a specific value. 
+  
+  A function named `func_accuracy` is created to represent the formula of Accuracy. 
+  
+  description of variables in the function:
+  
+  - TP: True Positive
+    
+  - TN: True Negative
+```{r}
+func_accuracy <- function(data){
+  total <- nrow(data)
+  tn <- sum(data$class == 0 & data$scored.class ==0)
+  tp <- sum(data$class == 1 & data$scored.class ==1)
+  return((tn+tp)/total)
+}
+
+func_accuracy(data)
+```
+
+# Task 4: Classification Error Rate
+4. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the classification error rate of the predictions.
+
+  \center$Classification Error Rate = \displaystyle \frac{FP+FN}{TP+FP+TN+FN}$\center
+  
+  **Answer**: Clasification error rate means the ratio of total number of units in error to the total population, or can be calculated as 1-Accuracy
+  
+  A function named `func_Error_Rate` is created to represent the formula of Classification Error Rate.
+  
+  Descrption of variables in the function:
+  
+  - FP: False Positive
+  
+  - FN: False Negative
+```{r}
+func_Error_Rate <- function(data){
+  total <- nrow(data)
+  fn <- sum(data$class == 1 & data$scored.class ==0)
+  fp <- sum(data$class == 0 & data$scored.class ==1)
+  return((fn+fp)/total)
+}
+
+func_Error_Rate(data)
+```
+
+Verify that you get an accuracy and an error rate that sums to one.
+  Answer: verifed the output of functions `func_accuracy` and `func_Error_Rate` add up to 1.
+```{r}
+func_accuracy(data)+func_Error_Rate(data)
+```
+
+# Task 5: Precision
+5. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the precision of the predictions.
+
+  \center$Precision = \displaystyle \frac{TP}{TP+FP}$\center
+  
+  **Answer**: Precision means the closeness of the measurements to each other.
+  
+  A function named `func_precision` is created to represent the formula of Precision.
+  
+  Descrption of variables in the function:
+  
+  - FP: False Positive
+  
+  - TP: True Positive
+```{r}
+func_precision <- function(data){
+  fp <- sum(data$class == 0 & data$scored.class ==1)
+  tp <- sum(data$class == 1 & data$scored.class ==1)
+  return(tp/(tp+fp))
+}
+
+func_precision(data)
+```
+
+# Task 6: Sensitivity
+6. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the sensitivity of the predictions. Sensitivity is also known as recall.
+
+  \center$Sensitivity = \displaystyle \frac{TP}{TP+FN}$\center 
+  
+  **Answer**: Sensitivity means the proportion of actual positives that are correctly identified as such, AKA True Positive Rate
+  
+  A function named `func_sensitivity` is created to represent the formula of Sensitivity.
+  
+  Descrption of variables in the function:
+  
+  - FN: False Negative
+  
+  - TP: True Positive
+```{r}
+func_sensitivity <- function(data){
+  fn <- sum(data$class == 1 & data$scored.class ==0)
+  tp <- sum(data$class == 1 & data$scored.class ==1)
+  return(tp/(tp+fn))
+}
+
+func_sensitivity(data)
+```
+
+# Task 7: Specificity
+7. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the specificity of the predictions.
+
+  \center$Specificity = \displaystyle \frac{TN}{TN+FP}$\center
+  
+  **Answer**: Specificity means the proportion of actual negatives that are correctly identified as such, AKA True Negative Rate
+  
+  A function named `func_specificity` is created to represent the formula of Specificity.
+  
+  Descrption of variables in the function:
+  
+  - TN: True Negative
+  
+  - FP: False Positive  
+```{r}
+func_specificity <- function(data){
+  tn <- sum(data$class == 0 & data$scored.class ==0)
+  fp <- sum(data$class == 0 & data$scored.class ==1)
+  return(tn/(tn+fp))
+}
+
+func_specificity(data)
+```
+
+# Task 8: F1Score
+8. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the F1 score of the predictions.
+
+  \center$F1Score = \displaystyle \frac{2 \times Precision \times Sensitivity}{Precision+Sensitivity}$\center 
+  
+  **Answer**: F1Score is a measure of a test's accuracy. It is calucalted as the harmonic mean of the precision and Sensitivity.
+  
+  A function named `func_f1score` is created to represent the formula of F1 score. Precision and Sensitivity are used to compute F1 score, therefore the function `func_precision` and 'func_sensitivity' defined above are reused in this question.
+  
+```{r}
+func_f1score <- function(data){
+  prec <- func_precision(data)
+  sens <- func_sensitivity(data)
+  return((2*prec*sens)/(prec+sens))
+}
+
+func_f1score(data)
+```
+
+# Task 9: Prove 0 < F1Score < 1
+9. Before we move on, let's consider a question that was asked: What are the bounds on the F1 score? Show that the F1 score will always be between 0 and 1. (Hint: If $0<a<1$ and $0<b<1$ then $ab<a$.)
+
+  **Answer**: let $\alpha = Precision$, $\beta = Sensitivity$, $\gamma = F1 Score = \displaystyle \frac{2 \times \alpha \times \beta}{\alpha+\beta}$
+  
+  $\because$ $0<\alpha<1$ and  $0<\beta<1$
+  
+  $\therefore\displaystyle \frac{2 \times \alpha \times \beta}{\alpha+\beta} > 0$
+  
+  and $\because 0<\alpha<1$ and $0<\beta<1$ then $\alpha\beta<\alpha$
+  
+  $\therefore \displaystyle \frac{2 \times \alpha \times \beta}{\alpha+\beta} = \displaystyle \frac{\alpha\beta}{\alpha+\beta}+\frac{\alpha\beta}{\alpha+\beta}< \displaystyle \frac{\alpha}{\alpha+\beta}+\frac{\beta}{\alpha+\beta} =  \displaystyle \frac{\alpha+\beta}{\alpha+\beta} = 1$
+  
+  $\therefore 0<\gamma<1$
+
+# Task 10: ROC Curve
+10. Write a function that generates an ROC curve from a data set with a true classification column (class in our example) and a probability column (scored.probability in our example). Your function should return a list that includes the plot of the ROC curve and a vector that contains the calculated area under the curve (AUC). Note that I recommend using a sequence of thresholds ranging from 0 to 1 at 0.01 intervals.
+
+  **Answer**: ROC curve (short form of Receiver Operating Characteristic curve), is a graphical phot that illustrates the diagonostic ability of a binary classifier system as its discrimination threshold is varied (Reference: [Wikipedia](https://en.wikipedia.org/wiki/Receiver_operating_characteristic)). 
+  
+  The ROC curve is created by plotting the true positive rate (`TPR`, or a.k.a `Senstivity`) against the false positive rate (`FPR`, can be calculated as (1-`Specificity`)) at various threshold settings.
+
+
+```{r}
+library(grid)
+func_roc <- function(x,p, ...){
+  for (threshold in seq(0,1,0.01)){
+    #create dataset for each threshold
+    temp <- data.frame(class = x, 
+                scored.class = if_else(p >= threshold,1,0),
+                scored.probability = p)
+     
+    #create vectors to store TPR & FPR for all datasets
+    if(!exists('TPR') & !exists('FPR')){
+      TPR <- func_sensitivity(temp)
+      FPR <- 1- func_specificity(temp)
+    }
+    else{
+      TPR <- c(TPR,func_sensitivity(temp))
+      FPR <- c(FPR, 1- func_specificity(temp))
+    }
+  }
+  roc_df <- data.frame(TPR, FPR) %>% arrange(FPR)
+  
+  #Compute AUC
+  AUC <- round(sum(roc_df$TPR * c(diff(roc_df$FPR),0)) 
+               + sum(c(diff(roc_df$TPR)，0) * c(diff(roc_df$FPR),0))/2, 4)
+  
+  #Create plot
+  plot(FPR, TPR, 'l', ...)
+  grid (10,10, lty = 6, col = "lightgrey")
+  polygon(c(FPR, 1,1), c(TPR, 0, 1), col = 'deeppink4',density = 20, angle = 45)
+  polygon(c(0,0,1,1), c(0,1,1,0), col = 'black', ,density = 0, lty = 6)
+  abline(a=0,b=1)
+  legend(0.5,0.4, AUC, title = 'AUC')
+}
+
+func_roc(data$class, data$scored.probability,
+         main = 'ROC Curve',
+         xlab = 'False Positive Rate (1-Specificity)',
+         ylab = 'True Positive Rate (Sensitivity)')
+
+
+```
+
+# Task 11: Produce All Metrics
+11. Use your **created R functions** and the  provided  classification  output data set to produce  all  of the classification metrics discussed above.
+```{r , message=FALSE}
+library(knitr)
+createdfunctions <- c(func_accuracy(data), func_Error_Rate(data), func_precision(data), func_sensitivity(data), func_specificity(data), func_f1score(data))
+names(createdfunctions) <- c("Accuracy", "Classification Error Rate", "Precision", "Sensitivity", "Specificity", "F1 Score")
+kable(createdfunctions, col.names = "Created Functions")
+```
+
+# Task 12: Package: `Caret`
+12. Investigate the **caret** package. In  particular, consider the functions  confusionMatrix,  sensitivity,  and specificity. Apply the functions to the data set. How do the results compare with your own functions?
+```{r warning=FALSE}
+library(caret)
+b <- data_raw %>%
+  select(scored.class, class) %>%
+  mutate(scored.class = as.factor(scored.class), 
+         class = as.factor(class))
+
+c <- confusionMatrix(b$scored.class, b$class, positive = "1")
+
+caret_package <- c(c$overall["Accuracy"], c$byClass["Sensitivity"], c$byClass["Specificity"])
+
+createdfunctions2 <- c(func_accuracy(data), func_sensitivity(data), func_specificity(data))
+
+d <- cbind(caret_package, createdfunctions2)
+kable(d, col.names = c("Caret Package","Created Functions"))
+```
+The results from the **caret** package and the functions  confusionMatrix,  sensitivity,  and specificity are the same.
+
+# Task 13: Package: `pROC`
+13.Investigate  the **pROC** package.  Use  it  to  generate  an  ROC  curve for  the  data  set.  How  do  the  results compare with your own functions?
+```{r, comment=FALSE, message=FALSE}
+library(pROC)
+par(mfrow = c(1, 2), pty = 's')
+plot(roc(data_raw$class, data_raw$scored.probability), 
+     print.auc = TRUE, main = 'ROC Curve - pROC Package')
+func_roc(data$class, data$scored.probability, 
+         main = 'ROC Curve - Customed Function',
+         xlab = 'False Positive Rate (1-Specificity)',
+         ylab = 'True Positive Rate (Sensitivity)')
+```
+
+It appears that our results are similiar to that of the ROC curve for the data set.
+
