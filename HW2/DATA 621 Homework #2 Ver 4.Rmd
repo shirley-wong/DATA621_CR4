@@ -8,7 +8,7 @@ output:
     code_folding: hide
     df_print: paged
     highlight: tango
-    number_sections: yes
+    number_sections: no
     smooth_scroll: yes
     theme: united
     toc_collapsed: yes
