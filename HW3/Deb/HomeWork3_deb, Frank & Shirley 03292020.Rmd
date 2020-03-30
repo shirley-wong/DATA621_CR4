@@ -504,9 +504,21 @@ fourfoldplot(m5cM$table, color = c("#B22222", "#2E8B57"), main="Model 6")
 
 ## Summary Statistics
 
-Model 1, Model 2 and Model 3 contain at least one highest score of each category. 
+Model 1, Model 2 and Model 5 have best performance in at least one category. 
 ```{r, echo=TRUE, warning=FALSE}
-data.frame(m1cM$byClass, 
+
+temp <- data.frame(m1cM$overall, 
+                   m2cM$overall, 
+                   m3cM$overall, 
+                   m4cM$overall,
+                   m5cM$overall,
+                   m6cM$overall) %>%
+  t() %>%
+  data.frame() %>%
+  dplyr::select(Accuracy) %>%
+  mutate(Classification_Error_Rate = 1-Accuracy)
+
+Summ_Stat <-data.frame(m1cM$byClass, 
                    m2cM$byClass, 
                    m3cM$byClass, 
                    m4cM$byClass,
@@ -514,26 +526,34 @@ data.frame(m1cM$byClass,
                    m6cM$byClass) %>%
   t() %>%
   data.frame() %>%
+  cbind(temp) %>%
 # manipulate results DF
   mutate(Model = c("Model 1", "Model 2", "Model 3", "Model 4", "Model 5", "Model 6")) %>%
-  dplyr::select(Model, Sensitivity, Specificity, Precision, Recall, F1) %>%
+  dplyr::select(Model, Accuracy, Classification_Error_Rate, Precision, Sensitivity, Specificity, F1) %>%
+  add_row(Model = 'Model 7 (Same as Model 5)') %>%
+  add_row(Model = 'Model 8 (Same as Model 6)') %>%
   mutate_if(is.numeric, round,3) %>%
-  mutate_if(is.numeric, function(x) {
+  mutate_at(c('Accuracy', 'Precision', 'Sensitivity', 'Specificity', 'F1'), function(x) {
   cell_spec(x, 
             bold = if_else(x == max(x, na.rm = TRUE),TRUE, FALSE), 
             font_size = if_else(x == max(x, na.rm = TRUE),14, 12))}) %>%
+  mutate(Classification_Error_Rate = cell_spec(Classification_Error_Rate, 
+                                               bold = if_else(Classification_Error_Rate == min(Classification_Error_Rate, na.rm = TRUE),TRUE,FALSE),
+                                               font_size = if_else(Classification_Error_Rate == min(Classification_Error_Rate, na.rm = TRUE),14, 12))) %>%
   mutate(Model = cell_spec(Model, 
                            bold = if_else(Model %in% c('Model 1', 'Model 2', 'Model 5'), TRUE, FALSE),
                            font_size = if_else(Model %in% c('Model 1', 'Model 2', 'Model 5'), 14, 12))) %>%
   kable('html', escape = F) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F)
 
+Summ_Stat
 ```
+
 
 ## ROC / AUC
 
 AUC: model 1 > model 5 > model 2 > model 6 > model 3 > model 2
-```{r, echo=TRUE, warning=FALSE}
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
 getROC <- function(model) {
     name <- deparse(substitute(model))
     pred.prob1 <- predict(model, newdata = data_rescaled, type="prob")
@@ -639,6 +659,13 @@ summary(finalmod)
 plot(finalmod$finalModel)
 ```
 
+
+## Model Selection (Fan & Shirley Proposed)
+
+From the model selection process above, we know that model 1 suffer from co-linearity issues, the rest of the models tried to elimiate these issues but also to achieve best predicton performance. Among them, model 5 has 1) the highest Specificity, 2) second highest accuracy, precision, sensitivity, F1 Score, AUC and McFadden's R squared preceded by model1, 3) lowest AIC and AICc. Therefore model 5 is selected to be the final model.
+
+
+
 ## Odds Ratio  
 
 We'll also create a table of the Odds Ratio for our final model beside the 95% confidence interval of those boundaries.  
@@ -652,6 +679,7 @@ So we can now say that with a one unit increase in the scaled age variable, the 
 
 All that is left is to use our final to make predictions over the evaluation dataset.  
 
+
 # Make Predictions
 
 We make our final predictions, create a dataframe with the prediction and the predicted probabilities. We can see from the head of our final dataframe and the table output of our predicted variable class that the prediction distribution seems similar to our initial test distribution.  
@@ -660,7 +688,7 @@ We make our final predictions, create a dataframe with the prediction and the pr
 finalpreds <- predict(finalmod, data_e)
 finalpreds.probs <- predict(finalmod, data_e, type="prob")
 finaldf <- cbind(finalpreds.probs, prediction=finalpreds)
-write.csv(finaldf, 'HW3preds.csv', row.names = FALSE)
+#write.csv(finaldf, 'HW3preds.csv', row.names = FALSE)
 #knitr::kable(head(finaldf))
 #knitr::kable(table(finaldf$prediction))
 #DT::datatable(predicted_data)
