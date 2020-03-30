@@ -1,0 +1,667 @@
+---
+title: 'DATA 621 Homework #3'
+author: 'Critical Thinking Group 4: Rajwant Mishra, Priya Shaji, Debabrata Kabiraj,
+  Isabel Ramesar, Sin Ying Wong and Fan Xu'
+date: "3/15/2020"
+output:
+  rmdformats::readthedown:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    number_sections: no
+    smooth_scroll: yes
+    theme: united
+    toc_collapsed: yes
+    toc_depth: 5
+    toc_float: yes
+  word_document:
+    toc: yes
+    toc_depth: '5'
+  pdf_document:
+    extra_dependencies:
+    - geometry
+    - multicol
+    - multirow
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_collapsed: yes
+    toc_float: yes
+theme: lumen
+number_sections: yes
+toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning = FALSE, message=FALSE}
+library(tidyverse)
+library(kableExtra)
+library(visdat)
+library(DT)
+library(psych)
+library(corrplot)
+library(MASS)
+library(matrixStats)
+library(pacman)
+library(bestglm)
+library(glmnet)
+library(AICcmodavg)
+library(RcmdrMisc)
+library(caret)
+p_load(Hmisc, xlsx, xtable, knitr, scales, magrittr, tidyverse, stringr, e1071, corrplot, knitcitations, bibtex, missForest, abc,
+       foreach, doParallel, stargazer, forecast, matrixStats, glmulti, leaps, data.table, highlight, car, Amelia, caret)
+```
+
+# Overview
+In this homework assignment, you will explore, analyze and model a data set containing information on crime for various neighborhoods of a major city. Each record has a response variable indicating whether or not the crime rate is above the median crime rate (1) or not (0).
+
+Your objective is to build a binary logistic regression model on the training data set to predict whether the neighborhood will be at risk for high crime levels. You will provide classifications and probabilities for the evaluation data set using your binary logistic regression model. You can only use the variables given to you (or variables that you derive from the variables provided). Below is a short description of the variables of interest in the data set:
+
+| Variable Name | Definition                                                                   | Variable Type |
+|---------------|------------------------------------------------------------------------------|---------------|
+| zn            | proportion of residential land zoned for large lots (over 25000 square feet) | predictor     |
+| indus         | proportion of non-retail business acres per suburb                           | predictor     |
+| chas          | a dummy var. for whether the suburb borders the Charles River (1) or not (0) | predictor     |
+| nox           | nitrogen oxides concentration (parts per 10 million)                         | predictor     |
+| rm            | average number of rooms per dwelling                                         | predictor     |
+| age           | proportion of owner-occupied units built prior to 1940                       | predictor     |
+| dis           | weighted mean of distances to five Boston employment centers                 | predictor     |
+| rad           | index of accessibility to radial highways                                    | predictor     |
+| tax           | full-value property-tax rate per $10,000                                     | predictor     |
+| ptratio       | pupil-teacher ratio by town                                                  | predictor     |
+| black         | 1000(Bk - 0.63)2 where Bk is the proportion of blacks by town                | predictor     |
+| lstat         | lower status of the population (percent)                                     | predictor     |
+| medv          | median value of owner-occupied homes in $1000s                               | predictor     |
+| target        | whether the crime rate is above the median crime rate (1) or not (0)         | response      |
+
+# Deliverables
+A write-up of your solutions submitted in PDF format. Assigned prediction (probabilities, classifications) for the evaluation data set. Use 0.5 threshold.
+
+
+# Data Exploration
+
+```{r Import Dataset, message=FALSE, warning=FALSE}
+data_t <- read_csv("https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW3/crime-training-data_modified.csv") %>%
+  dplyr::select(target, everything())
+
+data_e <- read_csv('https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW3/crime-evaluation-data_modified.csv')
+```
+
+```{r corr matrix, fig.cap= "Correlation Plot of Training Data Set", echo = FALSE}
+dfTrMx <- as.matrix(data_t)
+corMx <- cor(dfTrMx , use = "everything",  method = c("pearson"))
+corrplot(corMx, order = "hclust", addrect = 2, method = "square", tl.col = "black", tl.cex = .75, na.label = " ")
+```
+
+We implement a correlation matrix to better understand the correlation between variables in the data set. The below matrix is the results and we noticed a few interesting correlations. 
+
+* `nox` : High nitrogen oxides concentration (parts per 10 million) ("nox") is positively correlated with higher than median crime rates. As defined by the EPA - "NOx pollution is emitted by automobiles, trucks and various non-road vehicles (e.g., construction equipment, boats, etc.) as well as industrial sources such as power plants, industrial boilers, cement kilns, and turbines". It is clear to see that nox is concentrated in areas of high road traffic and possible high industrial use which would be neighborhoods of low value and may attract crime.
+
+* `dis`: The weighted mean of distances is negatively correlated with a city with higher than median crime rate. This is intuitive in that employment centers would be more closely located in cities of high crime due to high unemployment being positively correlated with higher crimes rates. 
+
+* `tax` : It is also counterintuitive how the crime rate has a positive correlation with the property tax. It would be anticipated that if the property tax increases, the crime rate would decrease due to the money that home occupants and owners would spend on "promised" security systems. However, when the crime rate starts to increase, the housing prices would decrease due to the fact that the home occupants and owners would not want to risk their safety.
+
+## Missing Values & Data Type Check
+
+Two data sets are given. One is the `training set`, which includes 12 candidate predictors, 1 response variable, and 466 observations without missing values (eg: NA, NULL or ''). The other one is the `evaluation set`, which includes 12 candidate predictors only, 40 observations without missing values. However, the variable `black`, which is described in the overview section, is not presented in the data set.
+
+Among the 12 candidate predictors, 1 is categorical (`chas`), the other 11 are continuous numerical. The response variable `target` is categorical.
+
+```{r, glimpse training set, warning=FALSE, message=FALSE}
+glimpse(data_t)
+```
+<center>Table 1: Glimpse of `training set`</center>
+
+```{r, glimpse evaluation set, warning=FALSE, message=FALSE}
+glimpse(data_e)
+```
+<center>Table 2: Glimpse of `evaluation set`</center>
+
+```{r, missing values & data type check, warning=FALSE, message=FALSE}
+Amelia::missmap(data_t, main = "Missing vs Observed Values in Traning Data")
+library(gridExtra)
+p_t_dt <- vis_dat(data_t)
+p_t_m <- vis_miss(data_t)
+p_e_dt <- vis_dat(data_e)
+p_e_m <- vis_miss(data_e)
+grid.arrange(p_t_m,p_e_m, p_t_dt,p_e_dt,ncol = 2, 
+             widths = c(1,1),
+             heights = c(1.5,1),
+             top = 'Missing Values & Data Type Check
+             Training Set                                                     Evaluation Set')
+
+
+```
+<center>Figure 1: Missing Values & Data Type Check</center>
+
+Below is the summary of the dataset and some inference of it. 
+
+1. It seems there are no Null values in the predictor and response variables.
+2. Each variables are in different scale.
+3. Categorical variables are `chas` and `target`. 
+4. There are a total of 466 observations and 12 predictor variables and 1 response variable.
+
+## Data Statistics Summary
+
+A binary logistic regression model is to be built using the `training set`, therefore the `training set` is used for the following data exploration.
+
+The data types in the raw data set are all 'doubles', however the candidate predictor `chas` and the response variable `target` are categorical, therefore, we update the data types of these two variables to 'factors'. 
+
+```{r summary}
+data_t_mod <- data_t %>% 
+  mutate(chas = as.factor(chas),
+         target = as.factor(target)) %>%
+  dplyr::select(target, everything())
+DT::datatable(data_t_mod)
+```
+<center>Table 3: `training set`</center>
+
+The statistics of all variables are list below:
+```{r statistics summary}
+summary(data_t_mod)
+```
+
+The box plot shows that outliners exist in variables `zn`, `rm`, `dis`, `istat`, `medv`. 
+
+```{r Boxplot on training set, warning=FALSE, message=FALSE}
+data_t %>%
+  scale() %>%
+  as.data.frame() %>%
+  stack() %>%
+  ggplot(aes(x = ind, y = values)) +
+  geom_boxplot(fill = 'deeppink4') +
+  labs(title = 'Boxplot: Scaled Training Set',
+       x = 'Variables',
+       y = 'Normalized_Values')+
+  theme(panel.background = element_rect(fill = 'grey'))  
+```
+<center>Figure 2: Boxplot: Scaled Training Set</center>
+
+The histogram shows that variables `zn`,`nox`, `dis`, `istat`, `medv` are right skewed; `age`, `ptratio` are left skewed;  `rad`, `tax` are bimodal; `target`, `chas` are categorical however `target` is close to unbias while `chas` is highly biased; the rest are close to normal. 
+
+```{r,Histogram on training set, warning=FALSE, message=FALSE}
+data_t %>%
+  scale() %>%
+  as.data.frame() %>%
+  stack() %>%
+  ggplot(aes(x = values)) +
+  geom_histogram(fill = 'deeppink4', color = 'black') +
+  labs(title = 'Histogram: Training Set')+
+  theme(panel.background = element_rect(fill = 'grey'))+
+  facet_wrap(~ind, scale='free', ncol = 4)
+
+```
+<center>Figure 3: Histogram: Training Set</center>
+
+```{r, eval=TRUE}
+data_t %>%
+  select_if(is.numeric) %>%
+  keep(is.numeric) %>%                     # Keep only numeric columns
+  gather() %>%                             # Convert to key-value pairs
+  ggplot(aes(x=value)) +                   # Plot the values
+    facet_wrap(~key, scales = "free") +    # In separate panels
+    geom_density()  
+```
+<center>Figure 4: Histogram: Training Set</center>
+
+The correlation matices below show that the response variable `target` has strong positive relationship (>=0.6) with variables `rad`,`tax`,`age`,`indus`,`nox`, and strong negative relationship (<=-0.6) with variable `dis`. 
+
+Meanwhile, it worths notice that some pairs of candidate predictors have strong correlationship, such as `rad` and `tax` (0.92), `indus` and `nox` (0.76), `nox` and `dis` (-0.77), etc.,.  
+
+```{r correlation hitmap}
+data_t %>%
+  cor() %>%
+  #corrplot(method = "pie", type = "upper", order = 'hclust', tl.col = "black", diag = FALSE, bg= 'grey', col =     #colorRampPalette(c('deeppink4','white','steelblue1'))(100))
+  corrplot.mixed(upper = 'pie', lower = 'number', order = 'hclust', tl.col = "black")
+```
+<center>Figure 5: Correlation Pie Chart: Training Set</center>
+
+```{r correlation matrix}
+pairs.panels(data_t_mod)
+```
+<center>Figure 6: Correlation Matrix: Training Set</center>
+
+```{r include=TRUE, echo=TRUE,   warning=FALSE, message=FALSE}
+PerformanceAnalytics::chart.Correlation(data_t, histogram=TRUE, pch=19)
+```
+<center>Figure 7: Correlation Chart: Training Set</center>
+
+```{r test}
+data_t %>%
+  cor() %>%
+  as.data.frame() %>%
+  rownames_to_column('Variable') %>%
+  dplyr::rename(Correlation_vs_Response = target)
+```
+
+## Consolidated Data Dictionary
+
+As a summary of the data exploration process, a data dictionary is created as below:
+
+```{r data dictionary}
+data_stat <- data_t %>% 
+  dplyr::select(-target,-chas) %>%
+  gather() %>%
+  group_by(key) %>%
+  summarise(Mean = mean(value),
+            Median = median(value),
+            Max = max(value),
+            Min = min(value),
+            SD = sd(value))
+
+data_cor <- data_t %>%
+  cor() %>%
+  as.data.frame() %>% 
+  dplyr::select(target) %>% 
+  rownames_to_column('Variable') %>%
+  dplyr::rename(Correlation_vs_Response = target)
+
+data_t %>% 
+  gather() %>%
+  dplyr::select(key) %>%
+  unique() %>%
+  dplyr::rename(Variable = key) %>%
+  mutate(Description = c('whether the crime rate is above the median crime rate (1) or not (0)',
+                         'proportion of residential land zoned for large lots (over 25000 square feet)',
+                         'proportion of non-retail business acres per suburb',
+                         'a dummy var. for whether the suburb borders the Charles River (1) or not (0)',
+                         'nitrogen oxides concentration (parts per 10 million)',
+                         'average number of rooms per dwelling',
+                         'proportion of owner-occupied units built prior to 1940',
+                         'weighted mean of distances to five Boston employment centers',
+                         'index of accessibility to radial highways',
+                         'full-value property-tax rate per $10,000',
+                         'pupil-teacher ratio by town',
+                         'lower status of the population (percent)',
+                         'median value of owner-occupied homes in $1000s'),
+         Var_Type_1 = case_when(Variable %in% c('target','chas') ~ 'categorical', 
+                                Variable %in% c('rad','tax') ~ 'discrete numerical',
+                                TRUE ~ 'continuous numerical'),
+         Var_Type_2 = if_else(Variable == 'target', 'response', 'predictor'),
+         Missing_Value = 'No') %>%
+  left_join(data_stat, by = c('Variable'='key')) %>%
+  left_join(data_cor, by = 'Variable') %>%
+  mutate_if(is.numeric,round,2) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F)
+```
+<center>Table 4: Data Dictionary</center>
+
+# Data Preparation
+
+## Re-scale Data
+
+The data set contains variables of different measurements, such as percentage, distance, money values, etc.,. To put all the predictors and the response on a comparable scale, the they are all normalized with mean = 0 and SD = 1.
+```{r re-scale}
+data_rescaled <- scale(data_t_mod[c(2,3,5:13)]) %>%
+  as.data.frame() %>%
+  cbind(data_t_mod[c(1,4)]) %>%
+  dplyr::select(target, zn, indus, chas, everything())
+
+DT::datatable(data_rescaled)
+```
+<center>Table 5: Rescaled `training set`</center>
+
+# Build Models
+
+Because we have a small number of observations to train over, we'll use k-fold Cross Validation to train, with k = 10.   We'll hold out 15% of the data for validation while doing initial modeling, but once we select our model, we'll retrain over the full training set.
+
+Each of our logistic regression models will use bionomial regression with a logit link function. 
+
+## Model 1: Full Model
+
+The first model fits includes all the variables.   A review of the VIF output of the model suggests some points that are highly colinear and a number of variables that may not be necessary.   Model 1 uses the formula:
+
+__target ~ .__
+
+```{r, echo=TRUE, warning=FALSE}
+set.seed(121)
+split <- caret::createDataPartition(data_rescaled$target, p=0.85, list=FALSE)
+partial_train <- data_rescaled[split, ]
+validation <- data_rescaled[ -split, ]
+mod1 <- caret::train(target ~., data = partial_train, 
+              method = "glm", family = "binomial",
+              trControl = trainControl(
+                  method = "cv", number = 10,
+                  savePredictions = TRUE),
+              tuneLength = 5, 
+              preProcess = c("center", "scale"))
+knitr::kable(vif(mod1$finalModel))
+```
+
+## Model 2: Removing predictors seemed Unnecessary
+
+Our second model ignores the colinear issues, but removes models that seemed unnecessary in Model #1.   Model 2 uses the formula: 
+
+__target ~ zn + nox + age + dis + rad + ptratio + medv__
+
+```{r, echo=TRUE, warning=FALSE}
+# remove low p-values
+mod2 <- train(target ~ zn + nox + age + dis + rad + ptratio + medv, 
+            data = partial_train, 
+            method = "glm", family = "binomial",
+            trControl = trainControl(
+                  method = "cv", number = 10,
+                  savePredictions = TRUE),
+            tuneLength = 5, 
+            preProcess = c("center", "scale"))
+knitr::kable(vif(mod2$finalModel))
+```
+
+## Model 3: Removing Higest VIF Values
+
+Model #3 removes the variables with the 2 highest VIF values from model1.   The model formula is:
+
+__target ~ indus + rm + age + dis + tax + ptratio + lstat + medv__
+
+```{r, echo=TRUE, warning=FALSE}
+## Reduce Collinearity by removing high VIFs
+mod3 <- train(target ~ indus + rm + age + dis + tax + ptratio + lstat + medv, data = partial_train, 
+              method = "glm", family = "binomial",
+              trControl = trainControl(
+                  method = "cv", number = 10,
+                  savePredictions = TRUE),
+              tuneLength = 5, 
+              preProcess = c("center", "scale"))
+knitr::kable(vif(mod3$finalModel))
+```
+
+## Model 4: Removing Poor Predictors
+
+Model #4 takes the advances in model #3 and removes those values shown to be poor predictors.   
+
+__target ~ age + dis + tax + medv__
+
+```{r, echo=TRUE, warning=FALSE}
+## reduce collinearity, and remove low values
+mod4 <- train(target ~ age + dis + tax + medv, 
+            data = partial_train, 
+            method = "glm", family = "binomial",
+            trControl = trainControl(
+                  method = "cv", number = 10,
+                  savePredictions = TRUE),
+            tuneLength = 5, 
+            preProcess = c("center", "scale"))
+knitr::kable(vif(mod4$finalModel))
+```
+## Model 5: Stepwise Based on AIC
+
+Model 5: target ~ nox + rad + tax + ptratio + age + medv + dis + zn + age
+
+```{r Stepwise AIC}
+full_model <- glm(target ~ ., data = partial_train, family = "binomial")
+model_5 <- stepwise(full_model, criterion = 'AIC', direction = 'forward/backward', trace = TRUE)
+summary(model_5)
+```
+
+## Model 6: Stepwise Based on BIC
+
+Model 6: target ~ nox + rad + tax
+```{r Stepwise BIC}
+model_6 <- stepwise(full_model, criterion = 'BIC', direction = 'forward/backward', trace = TRUE)
+summary(model_6)
+```
+
+## Model 7: Best Subset Based on AIC
+
+Model 7: target ~ nox + rad + tax + ptratio + age + medv + dis + zn (Same as Model 5)
+
+```{r best subset AIC, warning=FALSE, message=FALSE}
+Xy <- partial_train %>% dplyr::select(-target,everything())
+model_7 <- bestglm(Xy = Xy, family = binomial, IC = 'AIC', method = 'exhaustive')
+```
+
+Top 5 models among all the subsets:
+```{r top 5 models of subsets AIC}
+model_7$BestModels %>%
+  mutate(model_rank = row_number()) %>%
+  dplyr::select(model_rank, everything()) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F)
+```
+
+The rank top 1 model is selected as model 7.
+```{r best model of subsets AIC}
+model_7$BestModel
+```
+
+## Model 8: Best Subset Based on BIC
+
+Model 8: target ~ nox + rad + tax (Same as Model 6)
+
+```{r best subset BIC, warning=FALSE, message=FALSE}
+model_8 <- bestglm(Xy = Xy, family = binomial, IC = 'BIC', method = 'exhaustive')
+```
+
+Top 5 models among all the subsets:
+```{r top 5 models of subsets BIC}
+model_8$BestModels %>%
+  mutate(model_rank = row_number()) %>%
+  dplyr::select(model_rank, everything()) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F)
+```
+The rank top 1 model is selected as model 8.
+```{r best model of subsets BIC}
+model_8$BestModel
+```
+
+```{r re-train data}
+#re-train data using train() function
+model_5 <- train(target ~ nox + rad + tax + ptratio + age + medv + dis + zn + age, 
+            data = partial_train, 
+            method = "glm", family = "binomial",
+            trControl = trainControl(
+                  method = "cv", number = 10,
+                  savePredictions = TRUE),
+            tuneLength = 5, 
+            preProcess = c("center", "scale"))
+
+model_6 <- train(target ~ nox + rad + tax, 
+            data = partial_train, 
+            method = "glm", family = "binomial",
+            trControl = trainControl(
+                  method = "cv", number = 10,
+                  savePredictions = TRUE),
+            tuneLength = 5, 
+            preProcess = c("center", "scale"))
+```
+
+
+# Select Models
+
+To help aid in model selection, we'll review their accuracy by making predictions on our holdout validation set, and comparing their performance using a variety of confusion matrix adjacent functions like fourfold plots, summary statistics, and ROC / AUC plots. 
+
+## Fourfold Plots
+
+```{r, echo=TRUE, warning=FALSE}
+preds1 <- predict(mod1, newdata = validation)
+preds2 <- predict(mod2, newdata = validation)
+preds3 <- predict(mod3, newdata = validation)
+preds4 <- predict(mod4, newdata = validation)
+preds5 <- predict(model_5, newdata = validation)
+preds6 <- predict(model_6, newdata = validation)
+m1cM <- confusionMatrix(preds1, validation$target, mode = "everything")
+m2cM <- confusionMatrix(preds2, validation$target, mode = "everything")
+m3cM <- confusionMatrix(preds3, validation$target, mode = "everything")
+m4cM <- confusionMatrix(preds4, validation$target, mode = "everything")
+m5cM <- confusionMatrix(preds5, validation$target, mode = "everything")
+m6cM <- confusionMatrix(preds6, validation$target, mode = "everything")
+
+par(mfrow=c(3,3))
+fourfoldplot(m1cM$table, color = c("#B22222", "#2E8B57"), main="Model 1")
+fourfoldplot(m2cM$table, color = c("#B22222", "#2E8B57"), main="Model 2")
+fourfoldplot(m3cM$table, color = c("#B22222", "#2E8B57"), main="Model 3")
+fourfoldplot(m4cM$table, color = c("#B22222", "#2E8B57"), main="Model 4")
+fourfoldplot(m5cM$table, color = c("#B22222", "#2E8B57"), main="Model 5")
+fourfoldplot(m5cM$table, color = c("#B22222", "#2E8B57"), main="Model 6")
+```
+
+
+
+## Summary Statistics
+
+Model 1, Model 2 and Model 3 contain at least one highest score of each category. 
+```{r, echo=TRUE, warning=FALSE}
+data.frame(m1cM$byClass, 
+                   m2cM$byClass, 
+                   m3cM$byClass, 
+                   m4cM$byClass,
+                   m5cM$byClass,
+                   m6cM$byClass) %>%
+  t() %>%
+  data.frame() %>%
+# manipulate results DF
+  mutate(Model = c("Model 1", "Model 2", "Model 3", "Model 4", "Model 5", "Model 6")) %>%
+  dplyr::select(Model, Sensitivity, Specificity, Precision, Recall, F1) %>%
+  mutate_if(is.numeric, round,3) %>%
+  mutate_if(is.numeric, function(x) {
+  cell_spec(x, 
+            bold = if_else(x == max(x, na.rm = TRUE),TRUE, FALSE), 
+            font_size = if_else(x == max(x, na.rm = TRUE),14, 12))}) %>%
+  mutate(Model = cell_spec(Model, 
+                           bold = if_else(Model %in% c('Model 1', 'Model 2', 'Model 5'), TRUE, FALSE),
+                           font_size = if_else(Model %in% c('Model 1', 'Model 2', 'Model 5'), 14, 12))) %>%
+  kable('html', escape = F) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F)
+
+```
+
+## ROC / AUC
+
+AUC: model 1 > model 5 > model 2 > model 6 > model 3 > model 2
+```{r, echo=TRUE, warning=FALSE}
+getROC <- function(model) {
+    name <- deparse(substitute(model))
+    pred.prob1 <- predict(model, newdata = data_rescaled, type="prob")
+    p1 <- data.frame(pred = data_rescaled$target, prob = pred.prob1[[1]])
+    p1 <- p1[order(p1$prob),]
+    rocobj <- pROC::roc(p1$pred, p1$prob)
+    plot(rocobj, asp=NA, legacy.axes = TRUE, print.auc=TRUE,
+         xlab="Specificity", main = name)
+}
+par(mfrow=c(3,3))
+getROC(mod1)
+getROC(mod2)
+getROC(mod3)
+getROC(mod4)
+getROC(model_5)
+getROC(model_6)
+```
+
+## R^2, AIC, AICc & BIC
+
+Model 5 has smallest AIC & AICc, and the seconded largest R^2.
+```{r}
+null_model <- glm(target ~ 1, data = partial_train, family = 'binomial')
+#refit models using glm() function
+model_1 <- glm(target~., partial_train, family = 'binomial')
+model_2 <- glm(target~zn + nox + age + dis + rad + ptratio + medv, partial_train, family = 'binomial')
+model_3 <- glm(target~indus + rm + age + dis + tax + ptratio + lstat + medv, partial_train, family = 'binomial')
+model_4 <- glm(target~age + dis + tax + medv, partial_train, family = 'binomial')
+model_5 <- glm(target~nox + rad + tax + ptratio + age + medv + dis + zn + age, partial_train, family = 'binomial')
+model_6 <- glm(target~nox + rad + tax, partial_train, family = 'binomial')
+models <- list(model_1, model_2, model_3, model_4, model_5, model_6)
+
+Predictor <- models %>% 
+  lapply(function(x) str_c(unlist(row.names(summary(x)$coefficients)), collapse = ',')) %>%
+  unlist() %>% str_remove('\\(Intercept\\)\\,')
+
+McFaddens_R2 <- list(1-logLik(model_1)/logLik(null_model),
+                     1-logLik(model_2)/logLik(null_model),
+                     1-logLik(model_3)/logLik(null_model),
+                     1-logLik(model_4)/logLik(null_model),
+                     1-logLik(model_5)/logLik(null_model),
+                     1-logLik(model_6)/logLik(null_model)) %>%
+  unlist()
+
+AIC <- models %>%
+  lapply(function(x) AIC(x)) %>%
+  unlist()
+
+AICc <- models %>%
+  lapply(function(x) AICc(x)) %>%
+  unlist()
+
+BIC <- models %>%
+  lapply(function(x) BIC(x)) %>%
+  unlist()
+
+cbind(Predictor, McFaddens_R2, AIC, AICc, BIC) %>%
+  as.data.frame(stringsAsFactors = FALSE) %>%
+  mutate_at(c('McFaddens_R2','AIC','AICc','BIC'), as.numeric) %>%
+  mutate(Model = c(str_c('Model ', c(1:6)))) %>%
+  dplyr::select(Model, everything()) %>%
+  add_row(Model = 'Model 7', Predictor = 'Same as Model 5') %>%
+  add_row(Model = 'Model 8', Predictor = 'Same as Model 6') %>%
+  mutate_if(is.numeric, round,3) %>%
+  mutate(McFaddens_R2 = cell_spec(McFaddens_R2, 
+                                  bold = if_else(McFaddens_R2 == max(McFaddens_R2, na.rm = TRUE), TRUE, FALSE),
+                                  font_size = if_else(McFaddens_R2 == max(McFaddens_R2, na.rm = TRUE), 15, 12)),
+         AIC = cell_spec(AIC, 
+                         bold = if_else(AIC == min(AIC, na.rm = TRUE), TRUE, FALSE),
+                         font_size = if_else(AIC == min(AIC, na.rm = TRUE), 14, 12)),
+         AICc = cell_spec(AICc, 
+                          bold = if_else(AICc == min(AICc, na.rm = TRUE), TRUE, FALSE),
+                          font_size = if_else(AICc == min(AICc, na.rm = TRUE), 14, 12)),
+         BIC = cell_spec(BIC, 
+                         bold = if_else(BIC == min(BIC, na.rm = TRUE), TRUE, FALSE),
+                         font_size = if_else(BIC == min(BIC, na.rm = TRUE), 14, 12)),
+         Model = cell_spec(Model, 
+                           bold = if_else(Model == 'Model 5', TRUE, FALSE),
+                           font_size = if_else(Model == 'Model 5', 14, 12))) %>%
+  kable('html', escape = F) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F)
+
+
+#mpg = color_tile("white", "orange")(mpg)
+```
+
+## Model Selection
+
+While the first 2 models may have the most information, they also suffer from so co-linearity issues as shown by the variance VIF output. Model #3 performs well, but has some additional variables that may be poor predictors of whether a neighborhood will be above or below the median crime rate. Instead, while stripped out, we'll use Model #4 with only age, dis, tax and medv as predictors.   
+
+Before we make predictions, let's run this final model over our full dataset, and review some summary diagnostic plots and output.  
+
+```{r, echo=TRUE, warning=FALSE}
+finalmod <- train(target ~ age + dis + tax + medv, 
+            data = data_rescaled, 
+            method = "glm", family = "binomial",
+            trControl = trainControl(
+                  method = "cv", number = 10,
+                  savePredictions = TRUE),
+            tuneLength = 5, 
+            preProcess = c("center", "scale"))
+summary(finalmod)
+plot(finalmod$finalModel)
+```
+
+## Odds Ratio  
+
+We'll also create a table of the Odds Ratio for our final model beside the 95% confidence interval of those boundaries.  
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+odds <- round(exp(cbind(OddsRatio = coef(finalmod$finalModel), confint(finalmod$finalModel))), 3)
+knitr::kable(odds)
+```
+
+So we can now say that with a one unit increase in the scaled age variable, the odds of the neighborhood being below the median crime rate increase by 2.988%.  
+
+All that is left is to use our final to make predictions over the evaluation dataset.  
+
+# Make Predictions
+
+We make our final predictions, create a dataframe with the prediction and the predicted probabilities. We can see from the head of our final dataframe and the table output of our predicted variable class that the prediction distribution seems similar to our initial test distribution.  
+
+```{r, eval=TRUE, echo=TRUE, warning=FALSE, message=FALSE}
+finalpreds <- predict(finalmod, data_e)
+finalpreds.probs <- predict(finalmod, data_e, type="prob")
+finaldf <- cbind(finalpreds.probs, prediction=finalpreds)
+write.csv(finaldf, 'HW3preds.csv', row.names = FALSE)
+#knitr::kable(head(finaldf))
+#knitr::kable(table(finaldf$prediction))
+#DT::datatable(predicted_data)
+```
