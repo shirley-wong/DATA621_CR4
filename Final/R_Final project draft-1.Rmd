@@ -1,0 +1,303 @@
+---
+title: "Data 621 final project"
+author: "Priya Shaji"
+date: "4/18/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(kableExtra)
+library(lubridate)
+```
+
+
+```{r}
+data_pro <- read_csv("LiveStock-500.csv")
+data_indus = readxl::read_xlsx("st-indus.xlsx")
+```
+
+```{r}
+head(data_pro,10)
+months.abb <- c("Jan","Feb","Mar",
+              "Apr","May","Jun",
+              "Jul","Aug","Sep",
+              "Oct","Nov","Dec")
+
+head(data_indus)
+mutate(data_indus,avg_price = mean(data_pro[]))
+
+# Avg Price of the Index
+data_price <- data_pro %>% select(open_price,sname) %>% 
+  group_by(sname) %>% 
+  summarise(Avg_price = mean(open_price)) 
+
+# yearly Price 
+data_price_year <- data_pro %>% select(begins_at,open_price,sname) %>% 
+  group_by(Year=year(begins_at),sname) %>% 
+  summarise(Avg_price = mean(open_price)) 
+head(data_price)
+
+# Monthly Price
+data_price_month <- data_pro %>% select(begins_at,open_price,sname) %>% 
+  group_by(Year=year(begins_at),Month=months.abb[month(begins_at)],sname) %>% 
+  summarise(Avg_price = mean(open_price)) 
+head(data_price)
+
+data_price_year[which(data_price_year$sname=='AA'),]
+```
+
+```{r}
+glimpse(data_pro)
+```
+
+```{r}
+summary(data_pro)
+
+data_pro %>%
+  summary() %>%
+  kable() %>%
+  kable_styling()
+```
+
+
+```{r}
+# Get quantmod
+if (!require("quantmod")) {
+    install.packages("quantmod")
+    library(quantmod)
+}
+```
+
+# Number of ZERO
+```{r}
+data_pro %>% 
+  gather(variable, value) %>%
+  filter(value == 0) %>%
+  group_by(variable) %>%
+  tally() %>%
+  mutate(percent = n / nrow(data_pro) * 100) %>%
+  mutate(percent = paste0(round(percent, ifelse(percent < 10, 1, 0)), "%")) %>%
+  arrange(desc(n)) %>%
+#  rename("Variable With Zeros"=variable,"Number of Records"=n,"Share of Total"=percent) %>%
+  kable() %>%
+  kable_styling()
+
+ # we will not drop these now but we will review it latter.
+
+```
+
+# Let only Target shares that are between 100 and 200 open prices
+```{r}
+unique(data_pro$sname)
+
+data_pro %>% filter(open_price > 100 & open_price < 200  ) %>% select(open_price,sname) %>% group_by(sname) %>% summarise(Avg_price = mean(open_price)) %>% ggplot(mapping = aes(x=sname,y= Avg_price)) + geom_col()
+
+
+# left_join(data_price,data_indus,by = c("sname"="CODE"))  %>% filter(Avg_price > 100 & Avg_price < 200  ) %>% ggplot(mapping = aes(Sector)) + geom_bar()
+
+# Cheking only with 500 stokcs data how is the distribution of data in each sector
+
+left_join(data_price,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>% ggplot(mapping = aes(Sector)) + geom_bar() + theme(axis.text.x = element_text(angle = 70, hjust = 1))
+
+
+spread(data_price_year,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>% ggplot(mapping = aes(Sector,col=Year)) + geom_bar() + theme(axis.text.x = element_text(angle = 70, hjust = 1)) +facet_wrap('Year')
+
+
+spread(data_price_year,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" )  %>% ggplot(mapping = aes(Sector,Avg_price,fill=Year)) + geom_col() + theme(axis.text.x = element_text(angle = 70, hjust = 1)) 
+
+#+facet_wrap('Year')
+
+# Below Graph of the secotr by Month and year, show some pattern
+# We will  do some analysis to  see how stocs from  some  of these  industries  fit with AR  and  MA model.
+
+spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>% filter(Avg_price > 100 & Avg_price < 200  )%>% ggplot(mapping = aes(Sector,Avg_price,fill=Year)) + geom_col(position = "dodge2") + theme(axis.text.x = element_text(angle = 70, hjust = 1))
+#+ geom_bar(position = "dodge2")
+#+facet_wrap('Month')
+# By Month 
+spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>% ggplot(mapping = aes(Sector,Avg_price,fill=Month)) + geom_col(position = "dodge") + theme(axis.text.x = element_text(angle = 70, hjust = 1))
+
+# By Year 
+spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>% ggplot(mapping = aes(Sector,Avg_price,fill=Year)) + geom_col(position = "dodge") + theme(axis.text.x = element_text(angle = 70, hjust = 1))
+
+
+# Box PLot for year 
+spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>% ggplot(mapping = aes( stringr::str_remove(Sector,'Sector') ,Avg_price,fill=Year)) + geom_boxplot(position = "dodge") + theme(axis.text.x = element_text(angle = 30, hjust = 1)) + labs(title = "Boxplot of Stocks by Year ")+ ylim(0,200) + xlab( "Sector")
+
+# ----- TEMP
+# spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>%   ggplot(mapping = aes(Month,Avg_price,fill=Year)) + geom_col() + theme(axis.text.x = element_text(angle = 70, hjust = 1)) +   geom_bar(position = "dodge2")
+#   # ggplot(mapping = aes(Avg_price,fill=Month)) +   geom_histogram(position = "fill")
+#   # ggplot( aes(Month, Avg_price)) + geom_area(aes(fill = Month))
+#    # ggplot(mapping = aes(Month , Avg_price,group=Sector)) + geom_line(aes(colour = Sector), position = "stack") + geom_point(aes(colour = Sector), position = "stack") +  geom_area(aes(fill = Sector))
+
+
+# Find top 3 stocks in each Sector
+library(dplyr)
+
+
+data_price_month %>% group_by(sname)  %>%  summarise(Avg = mean(Avg_price)) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%   arrange(desc(Avg)) %>% top_n(n=16,wt = Avg)
+
+data_stock = data_price_month %>% group_by(sname)  %>%  summarise(Avg = mean(Avg_price)) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%   arrange(desc(Avg)) %>% top_n(n=20,wt = Avg)
+
+head(data_stock)
+unique(cbind(data_stock$NAME,data_stock$sname,data_stock$Sector))
+
+  # ggplot(mapping = aes(Month,Avg_price,fill=Year)) + geom_col() + theme(axis.text.x = element_text(angle = 70, hjust = 1)) +   geom_bar(position = "dodge2")
+
+
+```
+
+
+
+```{r}
+
+library(stringr)
+# We will study the flow on some of the stocks from Health and Tech Sectors
+# ANTM Anthem, Inc
+# ANET Arista Networks, Inc
+# BA The Boeing Company
+
+spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))%>% filter(!is.na(Sector))
+
+summary(data_pro)
+# Only Keeping Date, open_price ,      sname  , interpolated = FALSE
+glimpse((data_pro))
+
+data_Main <- data_pro %>% filter(!interpolated == TRUE )%>% .[,c(2,3,10)] %>% 
+  subset( sname %in% data_stock$sname) 
+
+
+
+head(data_Main)
+
+```
+
+```{r}
+#COnverting our data of stokcs in wide format 
+wide_data_Main <- spread(data_Main,sname,open_price)
+
+head(wide_data_Main)
+
+```
+
+```{r}
+# Fit an AR model to this data
+# ANTM Anthem, Inc
+# ANET Arista Networks, Inc
+# BA The Boeing Company
+library(xts)
+stocks_ANTM <-(xts(wide_data_Main$ANTM, order.by=as.Date(wide_data_Main[,1])))
+stocks_ANET <- ts(xts(wide_data_Main$ANET, order.by=as.Date(wide_data_Main[,1])))
+stocks_BA <- ts(xts(wide_data_Main$BA, order.by=as.Date(wide_data_Main[,1])))
+
+class(stocks_ANTM)
+plot.xts(stocks_ANTM)
+acf(stocks_ANTM,lag.max = 30)
+acf(stocks_ANET)
+acf(stocks_BA)
+
+
+
+plot(diff(as.zoo(stocks_ANTM)))
+
+head(as.zoo(stocks_ANTM))
+
+```
+
+
+```{r}
+#	For a given time series x we can fit the autoregressive (AR) model using the arima() command and setting order equal to c(1, 0, 0). Note for reference that an AR model is an ARIMA(1, 0, 0) model.
+
+
+plot.ts(stocks_ANTM)
+AR_ANTM <- arima(stocks_ANTM, order  = c(1,0,0))
+MA_ANTM <- arima(stocks_ANTM, order  = c(0,0,1))
+AR_ANTM_fit <- as.ts(stocks_ANTM) - resid(AR_ANTM)
+MA_ANTM_fit <- as.ts(stocks_ANTM) - resid(MA_ANTM)
+points(AR_ANTM_fit, type = "l", col = 4, lty = 1)
+points(MA_ANTM_fit, type = "l", col = 3, lty = 1)
+
+
+# Make a 1-step through 10-step forecast based on MA
+predict(AR_ANTM,n.ahead = 10)
+
+# Plot the Nile series plus the forecast and 95% prediction intervals
+plot.ts(stocks_ANTM)
+MA_forecasts <- predict(AR_ANTM, n.ahead = 10)$pred
+MA_forecast_se <- predict(MA_ANTM, n.ahead = 10)$se
+points(MA_forecasts, type = "l", col = 2)
+points(MA_forecasts - 2*MA_forecast_se, type = "l", col = 2, lty = 2)
+points(MA_forecasts + 2*MA_forecast_se, type = "l", col = 2, lty = 2)
+
+# REDUCE DATE TO SEE HWO IT GOES FOR MONT OG MARCH
+# PLOT COR PLOT WITH OTHER SHARS ON TOP
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+start <- as.Date("2015-04-28")
+end <- as.Date("2020-04-27")
+```
+
+```{r}
+library(data.table)
+```
+
+```{r}
+head(data_pro$X1)
+class(data_pro)
+
+head(data_pro,n=100)
+```
+
+
+```{r}
+#reshape(data_pro, idvar = "X1 ", timevar = "sname", direction = "wide")
+```
+
+
+
+```{r}
+
+
+wide_data_pro <- dcast(setDT(data_pro), X1 ~ paste0("sname"), 
+                       value.var = c("open_price", "close_price"), sep = " ")
+
+```
+
+
+```{r}
+head(wide_data_pro,10)
+```
+
+```{r}
+typeof(wide_data_pro)
+```
+
+
+```{r}
+df <- data.frame(matrix(unlist(wide_data_pro), ncol = max(lengths(wide_data_pro)), byrow = TRUE))
+```
+
+```{r}
+typeof(df)
+```
+
