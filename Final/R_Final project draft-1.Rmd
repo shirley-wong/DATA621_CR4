@@ -12,7 +12,7 @@ library(lubridate)
 ```
 
 
-```{r}
+```{r include=FALSE}
 data_pro <- read_csv("LiveStock-500.csv")
 data_indus = readxl::read_xlsx("st-indus.xlsx")
 ```
@@ -83,7 +83,7 @@ data_pro %>%
   kable() %>%
   kable_styling()
 
- # we will not drop these now but we will review it latter.
+ # we will not drop these now but we will review it latter. We will not use volume in our anlysis at this time so we will drop those data points latter. 
 
 ```
 
@@ -186,10 +186,133 @@ head(wide_data_Main)
 # ANET Arista Networks, Inc
 # BA The Boeing Company
 library(xts)
-stocks_ANTM <-(xts(wide_data_Main$ANTM, order.by=as.Date(wide_data_Main[,1])))
-stocks_ANET <- ts(xts(wide_data_Main$ANET, order.by=as.Date(wide_data_Main[,1])))
-stocks_BA <- ts(xts(wide_data_Main$BA, order.by=as.Date(wide_data_Main[,1])))
+# wide_data_Main$begins_at  <- as_datetime(wide_data_Main$begins_at)
+stocks_ANTM <-xts(wide_data_Main$ANTM,  order.by=as.Date(wide_data_Main$begins_at))
+stocks_ANET <- xts(wide_data_Main$ANET, order.by=as.Date(wide_data_Main$begins_at))
+stocks_BA <- xts(wide_data_Main$BA,  order.by=as.Date(wide_data_Main$begins_at))
 
+# Data for only 2020 data 
+wide_data_Main_20 <- wide_data_Main[which(year(wide_data_Main$begins_at) %in% c("2020")),]
+# Data for only Rest than 2020 data 
+wide_data_Main_Old <- wide_data_Main[-which(year(wide_data_Main$begins_at) %in% c("2020")),]
+
+stocks_ANTM_MY  <-xts(wide_data_Main_20$ANTM,  order.by=as.Date(wide_data_Main_20$begins_at))
+stocks_ANET_MY <- xts(wide_data_Main_20$ANET, order.by=as.Date(wide_data_Main_20$begins_at))
+stocks_BA_MY <- xts(wide_data_Main_20$BA,  order.by=as.Date(wide_data_Main_20$begins_at))
+
+stocks_ANTM_old  <-xts(wide_data_Main_Old$ANTM,  order.by=as.Date(wide_data_Main_Old$begins_at))
+stocks_ANET_old <- xts(wide_data_Main_Old$ANET, order.by=as.Date(wide_data_Main_Old$begins_at))
+stocks_BA_old <- xts(wide_data_Main_Old$BA,  order.by=as.Date(wide_data_Main_Old$begins_at))
+
+```
+
+```{r}
+# With the commands head() and tail() we can see the first and last 6 lines of the base. There are 6 columns with: opening price, maximum and minimum prices, closing price, volume of transactions and adjusted price. Using the command summary() we verify the descriptive statistics of each price series and volume. The command str() returns the object structure. In this case, it's a xts object, a time series.
+
+library(forecast)
+
+head(stocks_ANTM)
+tail(stocks_ANTM)
+summary(stocks_ANTM)
+str(stocks_ANTM)
+plot(stocks_BA)
+acf(stocks_ANTM)
+
+
+acf_ANTM = acf(stocks_ANTM,lag.max = 30)
+acf_BA = acf(stocks_BA,lag.max = 30)
+acf_ANET = acf(stocks_ANET,lag.max = 30)
+acf_BA= acf(stocks_BA,lag.max = 30,plot = FALSE)
+
+
+autoplot(stocks_ANTM)
+frequency(stocks_ANTM)
+
+
+# Plot for 2020 Data only
+acf(stocks_ANTM_MY,lag.max = 30)
+autoplot(stocks_ANTM_MY)
+head(stocks_ANTM_MY)
+frequency(stocks_ANTM_MY)
+
+# For for rest of the data before 2020
+# Plot for 2020 Data only
+acf(stocks_ANTM_old)
+plot(stocks_ANTM_old)
+head(stocks_ANTM_old)
+frequency(stocks_ANTM_old)
+
+```
+The ACF plots test if an individual lag autocorrelation is different than zero. An alternative approach is to use the Ljung-Box test, which tests whether any of a group of autocorrelations of a time series are different from zero. In essence it tests the "overall randomness" based on a number of lags. If the result is a small p-value than it indicates the data are probably not white noise.
+
+```{r}
+# For 2020 Data
+Box.test(wide_data_Main_20$ANTM, lag = 30, fitdf = 0, type = "Lj")
+Box.test(wide_data_Main$ANTM, lag = 4, fitdf = 0, type = "Lj")
+```
+Here, we perform a Ljung-Box test on the first 24 lag autocorrelations. The resulting p-value is significant at 
+p < .001,  so this supports our ACF plot consideration above where we stated it's likely this is not purely white noise and that some time series information exists in this data.
+```{r}
+
+```
+ 
+```{r}
+plot(cbind(stocks_ANTM,stocks_ANET,stocks_BA))
+plot(cbind(stocks_ANTM_MY,stocks_ANET_MY,stocks_BA_MY))
+plot(cbind(stocks_ANTM_old,stocks_ANET_old,stocks_BA_old))
+
+```
+
+
+These plots suggest that these slots the stocks improved from their position from mid of 2016 though 2018, and then it remained constant in progress untill Late 2019 and early 2020.
+
+the trend is the long-term increase or decrease in the data. There is an increasing trend in the cement data.
+the seasonal pattern occurs when a time series is affected by seasonal factors such as the time of the year or the day of the week. The daily data of the stocks_ANTM doens't show any seasonality in the graph. 
+
+the cycle occurs when the data exhibit rises and falls that are not of a fixed period. These fluctuations are usually due to economic conditions and are often related to the "business cycle". We can see a few cycles in our in stocks_ANTM data from 2015 to 2018 and then in 2020 we have sudden drop due to covid 19.
+  #https://afit-r.github.io/ts_exploration
+
+```{r}
+
+
+```
+
+# Autocorrelation of Time Series
+Another way to look at time series data is to plot each observation against another observation that occurred some time previously. For example, we could plot yt agaisnt yt-1 . This is called a lag plot because you are plotting the time series against lags of itself. 
+
+
+```{r}
+
+plot(diff(stocks_ANTM))
+plot(diff(stocks_BA))
+plot(diff(stocks_ANET))
+
+dif_stocks_ANTM <- diff(stocks_ANTM)
+dif_stocks_ANET <- diff(stocks_ANET)
+dif_stocks_BA <- diff(stocks_BA)
+
+plot(cbind(dif_stocks_ANTM,dif_stocks_ANET,dif_stocks_BA))
+
+# Correatliton Between the stocks 
+cor(stocks_BA,stocks_ANET)
+cor(wide_data_Main$ANET,wide_data_Main$ANTM)
+cor(wide_data_Main_20$ANET,wide_data_Main_20$ANTM)
+cor(wide_data_Main_Old$ANET,wide_data_Main_Old$ANTM)
+
+
+cor(stocks_BA,stocks_ANTM)
+cor(wide_data_Main$BA,wide_data_Main$ANTM)
+cor(wide_data_Main_20$BA,wide_data_Main_20$ANTM)
+cor(wide_data_Main_Old$BA,wide_data_Main_Old$ANTM)
+psych::pairs.panels(as.matrix(wide_data_Main[,c('ANTM','BA','ANET')]))
+psych::pairs.panels(as.matrix(wide_data_Main_Old[,c('ANTM','BA','ANET')]))
+psych::pairs.panels(as.matrix(wide_data_Main_20[,c('ANTM','BA','ANET')]))
+
+
+```
+
+
+```{r}
 class(stocks_ANTM)
 plot.xts(stocks_ANTM)
 acf(stocks_ANTM,lag.max = 30)
@@ -203,35 +326,156 @@ plot(diff(as.zoo(stocks_ANTM)))
 head(as.zoo(stocks_ANTM))
 
 ```
+White Noise : Time series that show no autocorrelation are called "white noise". 
+Above plots shows that its of type of Random Walk model ,  and the (MA Model) Moving Average model should  give better estimates of this index.
 
 
 ```{r}
 #	For a given time series x we can fit the autoregressive (AR) model using the arima() command and setting order equal to c(1, 0, 0). Note for reference that an AR model is an ARIMA(1, 0, 0) model.
 
-
-plot.ts(stocks_ANTM)
+# Fit with Full Data
+# plot.ts(stocks_ANTM)
 AR_ANTM <- arima(stocks_ANTM, order  = c(1,0,0))
 MA_ANTM <- arima(stocks_ANTM, order  = c(0,0,1))
 AR_ANTM_fit <- as.ts(stocks_ANTM) - resid(AR_ANTM)
 MA_ANTM_fit <- as.ts(stocks_ANTM) - resid(MA_ANTM)
-points(AR_ANTM_fit, type = "l", col = 4, lty = 1)
-points(MA_ANTM_fit, type = "l", col = 3, lty = 1)
+summary(AR_ANTM)
+summary(MA_ANTM)
+# points(AR_ANTM_fit, type = "l", col = 4, lty = 2)
+# points(MA_ANTM_fit, type = "l", col = 3, lty = 3)
 
+
+ggplot(stocks_ANTM, aes(x = index(stocks_ANTM))) +
+  geom_line(aes(y= coredata(stocks_ANTM) , color="BASE")) +
+  geom_line(aes(y = AR_ANTM_fit, color = "AR Fit")) + 
+   geom_line(aes(y = MA_ANTM_fit, color = "MA Fit"))+
+  ggtitle("Anthem(ANTM) from 2015-20") +
+  scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  xlab("Date") + ylab("Price") 
+
+  # scale_colour_manual("Series", values=c("AR Fit"="gray40", "MA Fit"="firebrick4", "BASE"="darkcyan"))
+
+```
+
+```{r}
+# Fit with Only data After 2020
+# plot.ts(stocks_ANTM_MY)
+AR_ANTM_MY <- arima(stocks_ANTM_MY, order  = c(1,0,0))
+MA_ANTM_MY <- arima(stocks_ANTM_MY, order  = c(0,0,1))
+AR_ANTM_MY_fit <- as.ts(stocks_ANTM_MY) - resid(AR_ANTM_MY)
+MA_ANTM_MY_fit <- as.ts(stocks_ANTM_MY) - resid(MA_ANTM_MY)
+# points(AR_ANTM_MY_fit, type = "l", col = 4, lty = 2)
+# points(MA_ANTM_MY_fit, type = "l", col = 3, lty = 3)
+
+
+ggplot(stocks_ANTM_MY, aes(x = index(stocks_ANTM_MY))) +
+  geom_line(aes(y= coredata(stocks_ANTM_MY) , color="BASE")) +
+  geom_line(aes(y = AR_ANTM_MY_fit, color = "AR Fit")) + 
+   geom_line(aes(y = MA_ANTM_MY_fit, color = "MA Fit"))+
+   ggtitle("Anthem(ANTM) from 2020") +
+  scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  xlab("Date") + ylab("Price") 
+
+
+# Fit with Data before 2020
+AR_ANTM_old <- arima(stocks_ANTM_old, order  = c(1,0,0))
+MA_ANTM_old <- arima(stocks_ANTM_old, order  = c(0,0,1))
+AR_ANTM_old_fit <- as.ts(stocks_ANTM_old) - resid(AR_ANTM_old)
+MA_ANTM_old_fit <- as.ts(stocks_ANTM_old) - resid(MA_ANTM_old)
+
+ggplot(stocks_ANTM_old, aes(x = index(stocks_ANTM_old))) +
+  geom_line(aes(y= coredata(stocks_ANTM_old) , color="BASE")) +
+  geom_line(aes(y = AR_ANTM_old_fit, color = "AR Fit")) + 
+   geom_line(aes(y = MA_ANTM_old_fit, color = "MA Fit"))+
+  ggtitle("Anthem(ANTM) Before 2020") +
+  scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  xlab("Date") + ylab("Price") 
+
+
+```
+
+# Predict 
+
+WE will evalute all the data models and see its predction using both the models with Currnt Years data.
+```{r}
 
 # Make a 1-step through 10-step forecast based on MA
 predict(AR_ANTM,n.ahead = 10)
 
-# Plot the Nile series plus the forecast and 95% prediction intervals
-plot.ts(stocks_ANTM)
-MA_forecasts <- predict(AR_ANTM, n.ahead = 10)$pred
-MA_forecast_se <- predict(MA_ANTM, n.ahead = 10)$se
-points(MA_forecasts, type = "l", col = 2)
-points(MA_forecasts - 2*MA_forecast_se, type = "l", col = 2, lty = 2)
-points(MA_forecasts + 2*MA_forecast_se, type = "l", col = 2, lty = 2)
+# Plot the  series plus the forecast and 95% prediction intervals
 
+AR_forecasts <- predict(AR_ANTM, n.ahead = 300)$pred
+AR_forecast_se <- predict(AR_ANTM, n.ahead = 300)$se
+plot.ts(stocks_ANTM)
+points(AR_forecasts, type = "l", col = 4,lty=2)
+# points(AR_forecasts - AR_forecast_se, type = "l", col = 2, lty = 1)
+points(AR_forecasts - 2*AR_forecast_se, type = "l", col = 2, lty = 1)
+points(AR_forecasts + 2*AR_forecast_se, type = "l", col = 2, lty = 1)
+
+#--------------------
+library(forecast)
+# We can then use the ARIMA model to make forecasts for future values of the time series, using the "forecast.
+AR_ANTM_forcast <- forecast(AR_ANTM, h=30,level=c(99.5))
+# We can plot the observed value of stock for the , as well as the predicted that would be predicted for these and for the next 5 days using our ARIMA(0,0,1) model, 
+plot(AR_ANTM_forcast)
+#--------------------
+
+# Plot of orignal data set and predicaitn  of 2020 based on old data
+
+AR_old_forecasts <- predict(AR_ANTM_old, n.ahead = 300)$pred
+AR_old_forecast_se <- predict(AR_ANTM_old, n.ahead = 300)$se
+plot.ts(stocks_ANTM)
+points(AR_old_forecasts, type = "l", col = 4,lty=2)
+points(AR_old_forecasts - 2*AR_old_forecast_se, type = "l", col = 2, lty = 1)
+points(AR_old_forecasts + 2*AR_old_forecast_se, type = "l", col = 2, lty = 1)
+
+#MA Movinfg Average Modege
+MA_old_forecasts <- predict(MA_ANTM_old, n.ahead = 300)$pred
+MA_old_forecast_se <- predict(MA_ANTM_old, n.ahead = 300)$se
+plot.ts(stocks_ANTM)
+points(MA_old_forecasts, type = "l", col = 4,lty=2)
+points(MA_old_forecasts - 2*MA_old_forecast_se, type = "l", col = 2, lty = 1)
+points(MA_old_forecasts + 2*MA_old_forecast_se, type = "l", col = 2, lty = 1)
+
+# @----------------------
+AR_MY_forecasts <- predict(AR_ANTM_MY, n.ahead = 5)$pred
+AR_MY_forecast_se <- predict(AR_ANTM_MY, n.ahead = 3)$se
+plot.ts(stocks_ANTM_MY)
+points(AR_MY_forecasts, type = "l", col = 4,lty=2)
+points(AR_MY_forecasts - 2*AR_MY_forecast_se, type = "l", col = 2, lty = 1)
+points(AR_MY_forecasts + 2*AR_MY_forecast_se, type = "l", col = 2, lty = 1)
+
+dim(coredata(stocks_ANTM_MY))
+length(AR_MY_forecasts)
+
+ 
 # REDUCE DATE TO SEE HWO IT GOES FOR MONT OG MARCH
 # PLOT COR PLOT WITH OTHER SHARS ON TOP
+# ggplot(stocks_ANTM_MY, aes(x = index(stocks_ANTM_MY))) 
 
+  # autoplot(AR_ANTM_forcast) + geom_smooth()
+  # geom_line(aes(y= coredata(stocks_ANTM_MY) , color="BASE")) +
+  #   ggtitle("Anthem(ANTM): Predicted next 30") +
+  # scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  # xlab("Date") + ylab("Price") 
+  # 
+  # geom_line(aes(y = AR_forecasts, color = "EXACT")) + 
+  # geom_line(aes(y = AR_forecasts - 2*AR_forecast_se, color = "-Range"))+
+  # geom_line(aes(y = AR_forecasts + 2*AR_forecast_se, color = "+Range"))+
+  # ggtitle("Anthem(ANTM): Predicted next 30") +
+  # scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  # xlab("Date") + ylab("Price") 
+
+
+AIC(AR_ANTM,MA_ANTM)
+BIC(AR_ANTM,MA_ANTM)
+
+AIC(AR_ANTM_MY,MA_ANTM_MY)
+BIC(AR_ANTM_MY,MA_ANTM_MY)
+
+
+AIC(AR_ANTM_old,MA_ANTM_old)
+BIC(AR_ANTM_old,MA_ANTM_old)
 
 
 ```
@@ -255,6 +499,8 @@ points(MA_forecasts + 2*MA_forecast_se, type = "l", col = 2, lty = 2)
 ```{r}
 start <- as.Date("2015-04-28")
 end <- as.Date("2020-04-27")
+
+
 ```
 
 ```{r}
@@ -301,3 +547,8 @@ df <- data.frame(matrix(unlist(wide_data_pro), ncol = max(lengths(wide_data_pro)
 typeof(df)
 ```
 
+<!-- https://www.datacamp.com/community/blog/r-xts-cheat-sheet -->
+<!-- https://lamfo-unb.github.io/2017/07/22/intro-stock-analysis-1/ -->
+<!-- https://s3.amazonaws.com/assets.datacamp.com/blog_assets/xts_Cheat_Sheet_R.pdf -->
+<!-- https://a-little-book-of-r-for-time-series.readthedocs.io/en/latest/src/timeseries.html -->
+<!-- https://nwfsc-timeseries.github.io/atsa-labs/sec-tslab-correlation-within-and-among-time-series.html -->
