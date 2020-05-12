@@ -9,6 +9,7 @@ output: html_document
 library(tidyverse)
 library(kableExtra)
 library(lubridate)
+library(forecast)
 ```
 
 
@@ -205,6 +206,36 @@ stocks_ANET_old <- xts(wide_data_Main_Old$ANET, order.by=as.Date(wide_data_Main_
 stocks_BA_old <- xts(wide_data_Main_Old$BA,  order.by=as.Date(wide_data_Main_Old$begins_at))
 
 ```
+
+```{r}
+index(stocks_ANTM_MY)
+coredata(stocks_ANTM_MY)
+first(stocks_ANTM_MY)
+stocks_ANTM_MY[]
+
+tail(stocks_ANTM_MY,n=10)
+endpoints(stocks_ANTM_MY,on="months")  
+
+ 
+stocks_ANTM_MY['2020-04-14']
+month.abb[month(index(stocks_ANTM_MY))]
+nmonths(stocks_ANTM_MY)
+head(stocks_ANTM_MY,n=10)
+to.weekly(stocks_ANTM_MY)%>% as.data.frame %>% cbind(.,yr=week(index(to.weekly(stocks_ANTM_MY))))%>% pivot_longer(c(stocks_ANTM_MY.Open,stocks_ANTM_MY.High,stocks_ANTM_MY.Low,stocks_ANTM_MY.Close),names_to="Key" , values_to = "Prc")  %>% ggplot(aes(x=yr, y= Prc,fill=Key))+  geom_line(aes(colour=Key)) #+geom_col(position="dodge", alpha=0.5) 
+
+to.monthly(stocks_ANTM_MY) %>% as.data.frame %>% cbind(.,yr=index(to.monthly(stocks_ANTM_MY)))%>% pivot_longer(c(stocks_ANTM_MY.Open,stocks_ANTM_MY.High,stocks_ANTM_MY.Low,stocks_ANTM_MY.Close),names_to="Key" , values_to = "Prc")  %>% ggplot(aes(x=yr, y= Prc,fill=Key))+  geom_line(aes(colour=Key)) +geom_col(position="dodge", alpha=0.5) 
+periodicity(stocks_ANTM_MY)
+str(stocks_ANTM_MY)
+
+
+week(index(to.weekly(stocks_ANTM_MY)))
+
+
+stocks_ANTM_MY[c("2020-01-02","2020-01-03")]
+
+stocks_ANTM_MY[str_which(index(stocks_ANTM_MY),"\\d+-\\d+-03")]
+```
+
 
 ```{r}
 # With the commands head() and tail() we can see the first and last 6 lines of the base. There are 6 columns with: opening price, maximum and minimum prices, closing price, volume of transactions and adjusted price. Using the command summary() we verify the descriptive statistics of each price series and volume. The command str() returns the object structure. In this case, it's a xts object, a time series.
@@ -496,56 +527,8 @@ BIC(AR_ANTM_old,MA_ANTM_old)
 
 
 
-```{r}
-start <- as.Date("2015-04-28")
-end <- as.Date("2020-04-27")
 
 
-```
-
-```{r}
-library(data.table)
-```
-
-```{r}
-head(data_pro$X1)
-class(data_pro)
-
-head(data_pro,n=100)
-```
-
-
-```{r}
-#reshape(data_pro, idvar = "X1 ", timevar = "sname", direction = "wide")
-```
-
-
-
-```{r}
-
-
-wide_data_pro <- dcast(setDT(data_pro), X1 ~ paste0("sname"), 
-                       value.var = c("open_price", "close_price"), sep = " ")
-
-```
-
-
-```{r}
-head(wide_data_pro,10)
-```
-
-```{r}
-typeof(wide_data_pro)
-```
-
-
-```{r}
-df <- data.frame(matrix(unlist(wide_data_pro), ncol = max(lengths(wide_data_pro)), byrow = TRUE))
-```
-
-```{r}
-typeof(df)
-```
 
 <!-- https://www.datacamp.com/community/blog/r-xts-cheat-sheet -->
 <!-- https://lamfo-unb.github.io/2017/07/22/intro-stock-analysis-1/ -->
