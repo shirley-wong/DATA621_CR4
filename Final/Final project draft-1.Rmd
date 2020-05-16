@@ -1,0 +1,83 @@
+---
+title: "Data 621 final project"
+author: "Priya Shaji"
+date: "4/18/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(kableExtra)
+```
+
+
+```{r}
+data_pro <- read_csv("/Users/priyashaji/Downloads/LiveStock-500.csv")
+```
+
+```{r}
+head(data_pro,10)
+```
+
+```{r}
+glimpse(data_pro)
+```
+
+```{r}
+summary(data_pro)
+```
+
+
+```{r}
+# Get quantmod
+if (!require("quantmod")) {
+    install.packages("quantmod")
+    library(quantmod)
+}
+```
+
+```{r}
+start <- as.Date("2015-04-28")
+end <- as.Date("2020-04-27")
+```
+
+```{r}
+library(data.table)
+```
+
+```{r}
+data_pro$X1
+```
+
+
+```{r}
+#reshape(data_pro, idvar = "X1 ", timevar = "sname", direction = "wide")
+```
+
+
+
+```{r}
+
+
+wide_data_pro <- dcast(setDT(data_pro), X1 ~ paste0("sname"), value.var = c("open_price", "close_price"), sep = "")
+
+```
+
+
+```{r}
+head(wide_data_pro,10)
+```
+
+```{r}
+typeof(wide_data_pro)
+```
+
+
+```{r}
+df <- data.frame(matrix(unlist(wide_data_pro), ncol = max(lengths(wide_data_pro)), byrow = TRUE))
+```
+
+```{r}
+typeof(df)
+```
+
