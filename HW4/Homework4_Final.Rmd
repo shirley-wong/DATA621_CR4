@@ -1,0 +1,229 @@
+---
+title: 'Data 621 Homework #4:'
+author: "Critical Thinking Group 4: Rajwant Mishra, Priya Shaji, Debabrata Kabiraj,
+  Isabel Ramesar, Sin Ying Wong and Fan Xu"
+date: "04/03/2029"
+output:
+  rmdformats::readthedown:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    number_sections: no
+    smooth_scroll: yes
+    theme: united
+    toc_collapsed: yes
+    toc_depth: 5
+    toc_float: yes
+  word_document:
+    toc: yes
+    toc_depth: '5'
+  pdf_document:
+    extra_dependencies:
+    - geometry
+    - multicol
+    - multirow
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_collapsed: yes
+    toc_float: yes
+theme: lumen
+number_sections: yes
+toc_depth: 3
+---
+
+## Overview
+
+In this homework assignment, you will explore, analyze and model a data set containing approximately 8000 records representing a customer at an auto insurance company. Each record has two response variables. The first response variable, TARGET_FLAG, is a 1 or a 0. A “1” means that the person was in a car crash. A zero means that the person was not in a car crash. The second response variable is TARGET_AMT. This value is zero if the person did not crash their car. But if they did crash their car, this number will be a value greater than zero.
+Your objective is to build multiple linear regression and binary logistic regression models on the training data to predict the probability that a person will crash their car and also the amount of money it will cost if the person does crash their car. You can only use the variables given to you (or variables that you derive from the variables provided).
+
+
+```{r warning=FALSE}
+library(caTools);
+library (funModeling);
+library (varhandle);
+library (dplyr);
+library (Hmisc);
+library (MASS);
+library(pscl);
+```
+
+
+# Data Exploration and Data Preparation
+
+The first step we did was to import the data from GitHub, remove the index and look at the structure of the data.
+```{r}
+train<-read.csv("https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW4/insurance_training_data.csv", stringsAsFactors = TRUE)
+eval<-read.csv("https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW4/insurance-evaluation-data.csv",stringsAsFactors = TRUE)
+train<-train[-c(1)] # remove index column
+eval<-eval[-c(1)]
+str(train)
+```
+We removed special characters then converted variables to numbers for both the Training and Evaluation data.
+```{r}
+train$INCOME<-gsub("[\\$,]", "", train$INCOME)
+train$HOME_VAL<-gsub("[\\$,]", "", train$HOME_VAL)
+train$BLUEBOOK<-gsub("[\\$,]", "", train$BLUEBOOK)
+train$OLDCLAIM<-gsub("[\\$,]", "",train$OLDCLAIM)
+
+eval$INCOME<-gsub("[\\$,]", "", eval$INCOME)
+eval$HOME_VAL<-gsub("[\\$,]", "", eval$HOME_VAL)
+eval$BLUEBOOK<-gsub("[\\$,]", "", eval$BLUEBOOK)
+eval$OLDCLAIM<-gsub("[\\$,]", "",eval$OLDCLAIM)
+
+train$INCOME<-as.numeric(train$INCOME)
+train$HOME_VAL<-as.numeric(train$HOME_VAL)
+train$BLUEBOOK<-as.numeric(train$BLUEBOOK)
+train$OLDCLAIM<-as.numeric(train$OLDCLAIM)
+
+eval$INCOME<-as.numeric(eval$INCOME)
+eval$HOME_VAL<-as.numeric(eval$HOME_VAL)
+eval$BLUEBOOK<-as.numeric(eval$BLUEBOOK)
+eval$OLDCLAIM<-as.numeric(eval$OLDCLAIM)
+```
+
+We then split the training data into a train and test data set.
+```{r} 
+set.seed(123)
+sample <- sample.split(train,SplitRatio = 0.80) 
+train <- subset(train, sample == TRUE) 
+test <- subset(train, sample == FALSE)
+```
+
+```{r}
+summary(train)
+
+status <- df_status(train, print_results = TRUE)
+filter(status, p_zeros > 60)  %>% .$variable
+
+train2 <- select(train, -c(KIDSDRIV,HOMEKIDS,OLDCLAIM,CLM_FREQ))
+
+test <- select(test, -c(KIDSDRIV,HOMEKIDS,OLDCLAIM,CLM_FREQ))
+```
+
+```{r}
+freq(train2)
+```
+
+We can determine the skewness and kurtosis of the data.
+```{r}
+plot_num(train2)
+ 
+profiling_num(train2)
+```
+
+### Impute values
+
+The missing NA values were imputed with the median using the Hmisc package:
+
+```{r}
+train2$AGE<-impute(train2$AGE, median)
+train2$YOJ<-impute(train2$YOJ, median)
+train2$INCOME<-impute(train2$INCOME, median)
+train2$CAR_AGE<-impute(train2$CAR_AGE, median)
+
+eval$AGE<-impute(eval$AGE, median)
+eval$YOJ<-impute(eval$YOJ, median)
+eval$INCOME<-impute(eval$INCOME, median)
+eval$CAR_AGE<-impute(eval$CAR_AGE, median)
+```
+
+### Create new variable
+
+We created new variable which is PTSAGE = MVR_PTS/AGE. 
+
+```{r}
+train2$PTSAGE <- train2$MVR_PTS/train2$AGE
+test$PTSAGE <- test$MVR_PTS/test$AGE
+
+train2 <- select(train2, -c(MVR_PTS,AGE))
+
+test <- select(test, -c(MVR_PTS,AGE))
+```
+
+#Build Models
+
+###Predicting car crash
+
+In the model, we selected the following variables.
+```{r}
+model1 = glm(TARGET_FLAG ~ YOJ + INCOME + PARENT1 + HOME_VAL + MSTATUS + SEX + EDUCATION + JOB + TRAVTIME + CAR_USE + TIF + CAR_TYPE + RED_CAR + REVOKED + URBANICITY + PTSAGE,data = train2, family = 'binomial')
+summary(model1)
+```
+However we removed variables that deemed insufficient.
+
+```{r}
+model2 = glm(TARGET_FLAG ~ INCOME + PARENT1 + HOME_VAL + MSTATUS + EDUCATION + TRAVTIME + CAR_USE + TIF + CAR_TYPE + REVOKED + URBANICITY + PTSAGE, data = train2, family = 'binomial')
+summary(model2)
+```
+
+After removing the unecessary variables, all coefficients fall in line with their theoretical effects. 
+
+The model has a majority of the variables with significant p-values, with the exception of 2 categories of education (high school) and car type (truck). All of the coefficients of the variables also fall in line with theoretical effects.
+
+###Amount Predicted
+
+```{r}
+train2_claims = train2 %>% filter(TARGET_FLAG == 1)
+test_claims = test %>% filter(TARGET_FLAG == 1)
+linearmodel1 = lm(TARGET_AMT ~ .-TARGET_FLAG, data = train2_claims)
+summary(linearmodel1)
+```
+A lot of the variables are insignificant so we will limit the variables in the next model to make it more significant.
+
+```{r}
+linearmodel2 = lm(TARGET_AMT ~ MSTATUS + BLUEBOOK + CAR_AGE, data = train2_claims)
+summary(linearmodel2)
+```
+The coefficients are in line with theoretical effects in this model.
+
+#Select Model
+
+###Linear Models
+
+```{r linearmodel1 plots}
+par(mfrow = c(2,2))
+plot(linearmodel1)
+```
+
+```{r linearmodel2 plots}
+par(mfrow = c(2,2))
+plot(linearmodel2)
+```
+
+```{r linearmodel2 plots}
+par(mfrow = c(2,2))
+plot(linearmodel2)
+```
+
+```{r mse}
+amt = test_claims$TARGET_AMT
+summary(test_claims)
+as.matrix(c(mean((amt - predict.lm(linearmodel1, newdata = test_claims))^2, na.rm = TRUE), mean((amt - predict.lm(linearmodel2, newdata = test_claims))^2, na.rm = TRUE), mean((amt - predict.lm(linearmodel2, newdata = test_claims))^2, na.rm = TRUE)))
+```
+
+###Logit Models
+
+```{r}
+anova(model1, test = 'Chisq')
+anova(model2, test = 'Chisq')
+```
+```{r}
+pR2(model1);
+pR2(model2);
+```
+
+```{r}
+fitted.results = predict(model2, test, type = 'response')
+fitted.results = ifelse(fitted.results > 0.5, 1, 0)
+misClasificError = mean(fitted.results != test$TARGET_FLAG, na.rm = TRUE)
+print(paste('Accurancy', round(1-misClasificError, 3)))
+```
+
+```{r}
+eval$PTSAGE = eval$MVR_PTS/eval$AGE
+summary(eval)
+eval_results = predict(model2, eval, type = 'response')
+eval_results = ifelse(eval_results > 0.5, 1, 0)
+eval_amt = predict(linearmodel2, eval)
+```

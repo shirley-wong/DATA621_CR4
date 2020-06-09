@@ -1,0 +1,738 @@
+---
+title: 'DATA 621: Final Project'
+subtitle: Final_roject
+author: "Rajwant Mishra, Priya Shaji, Debabrata Kabiraj, Isabel Ramesar, Sin Ying Wong and Fan Xu"
+date: "May 1, 2020"
+#output: powerpoint_presentation
+output: 
+  rmdformats::readthedown:
+   #highlight: kate
+    number_sections: true # if you want number sections at each table header
+    smooth_scroll: true
+    theme: united # many options for theme, this one is my favorite.
+    highlight: tango # specifies the syntax highlighting style
+   #highlight: pygments
+   #theme: cerulean
+   #toc: true # table of content true
+    toc_collapsed : true
+    toc_float: true
+    toc_depth: 5
+    code_folding: hide
+    df_print: paged
+---
+## Overview
+ In this analys i we will analyse Stocks data and check and how Covid-19 had impacted it from thethe begining of the year 2020. We have collected data from excahnge for last Five year starting from year 2015 to Apr 27 2020.
+ We would be using Moving Average Model and Auto Regressive model to anlayse the time series data.  
+ 
+## Time Series analysis of Stocks data
+
+### Data Preparation
+
+Load the required libraries
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(kableExtra)
+library(lubridate)
+library(forecast)
+```
+
+Load required Datasets
+
+```{r include=FALSE}
+data_pro <- read_csv("LiveStock-500.csv")
+data_indus = readxl::read_xlsx("st-indus.xlsx")
+str(data_pro)
+head(data_pro)
+```
+
+
+Creating a character object called `months.abb`
+
+
+```{r}
+head(data_pro,10)
+months.abb <- c("Jan","Feb","Mar",
+              "Apr","May","Jun",
+              "Jul","Aug","Sep",
+              "Oct","Nov","Dec")
+```
+
+
+### Data Exploration
+
+
+Now, Let's use the mutate() funtion in the dplyr package to calculate average price for the stocks
+
+
+```{r}
+head(data_indus)
+as.data.frame(unique(data_indus$Sector))
+mutate(data_indus,avg_price = mean(data_pro[]))
+
+# Avg Price of the Index
+data_price <- data_pro %>% select(open_price,sname) %>% 
+  group_by(sname) %>% 
+  summarise(Avg_price = mean(open_price)) 
+```
+
+
+Yearly average price for the stocks
+
+```{r}
+# yearly Price 
+data_price_year <- data_pro %>% select(begins_at,open_price,sname) %>% 
+  group_by(Year=year(begins_at),sname) %>% 
+  summarise(Avg_price = mean(open_price)) 
+head(data_price)
+
+
+```
+
+Monthly average price for the stocks
+
+```{r}
+# Monthly Price
+data_price_month <- data_pro %>% select(begins_at,open_price,sname) %>% 
+  group_by(Year=year(begins_at),Month=months.abb[month(begins_at)],sname) %>% 
+  summarise(Avg_price = mean(open_price)) 
+head(data_price)
+
+data_price_year[which(data_price_year$sname=='AA'),]
+```
+
+
+Let's look at our data structure
+
+
+```{r}
+glimpse(data_pro)
+```
+
+```{r}
+summary(data_pro)
+
+data_pro %>%
+  summary() %>%
+  kable() %>%
+  kable_styling()
+```
+
+
+Calculate number of ZERO's in each variable in the dataset 
+
+
+```{r}
+data_pro %>% 
+  gather(variable, value) %>%
+  filter(value == 0) %>%
+  group_by(variable) %>%
+  tally() %>%
+  mutate(percent = n / nrow(data_pro) * 100) %>%
+  mutate(percent = paste0(round(percent, ifelse(percent < 10, 1, 0)), "%")) %>%
+  arrange(desc(n)) %>%
+#  rename("Variable With Zeros"=variable,"Number of Records"=n,"Share of Total"=percent) %>%
+  kable() %>%
+  kable_styling()
+
+ # we will not drop these now but we will review it latter. We will not use volume in our anlysis at this time so we will drop those data points latter. 
+
+```
+
+
+Now, let's only target shares whose open prices are between 100 and 200
+
+
+```{r}
+unique(data_pro$sname)
+
+data_pro %>% filter(open_price > 100 & open_price < 200  ) %>% select(open_price,sname) %>% group_by(sname) %>% summarise(Avg_price = mean(open_price)) %>% ggplot(mapping = aes(x=sname,y= Avg_price)) + geom_col() +theme(axis.text.x = element_text(angle = 70, hjust = 1)) +ggtitle("Stock open_price > 100 & open_price < 200  ") + xlab("Index")
+
+```
+
+
+The graph above tells us about average price of stocks for each sector name.
+
+
+Cheking only with 500 stokcs data and analyze the distribution of data in each sector
+
+
+```{r}
+
+left_join(data_price,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>% ggplot(mapping = aes(Sector)) + geom_bar() + theme(axis.text.x = element_text(angle = 70, hjust = 1)) + ggtitle("Avg. Price by Sector")
+
+```
+
+
+First graph tells us about increase in count of sectors, division by sectors
+
+
+```{r}
+spread(data_price_year,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>% group_by(Sector,Year) %>% summarise(Avg_price= mean(Avg_price)) %>% ggplot(mapping = aes(x=Sector, y = Avg_price,fill=Year)) + geom_col(position = "dodge")+ theme(axis.text.x = element_text(angle = 70, hjust = 1))  + ggtitle("Count by Sector per Year") 
+
+```
+
+
+The graph above tells us about yearly increase in count of sectors
+
+
+```{r}
+spread(data_price_year,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" )  %>% ggplot(mapping = aes(Sector,Avg_price,fill=Year)) + geom_col() + theme(axis.text.x = element_text(angle = 70, hjust = 1)) 
+
+#+facet_wrap('Year')
+```
+
+
+
+Third graph tells us about yearly increase in average price of sectors
+
+
+### Build Models
+
+
+Below is Graph of the sector by Month and year,which shows some pattern
+
+We will do some analysis to see how stocks from few of these industries fit with `AR(Auto Regression)` and  `MA(Moving Average)` model.
+
+
+Analyzing average price of stocks yearly for each sector in the dataset
+
+
+```{r}
+spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>% filter(Avg_price > 100 & Avg_price < 200  )%>% ggplot(mapping = aes(Sector,Avg_price,fill=Year)) + geom_col(position = "dodge") + theme(axis.text.x = element_text(angle = 70, hjust = 1)) + ggtitle("Avg Price Sector per year")
+#+ geom_bar(position = "dodge2")
+#+facet_wrap('Month')
+```
+
+
+Analyzing average price of stocks monthly for each sector in the dataset
+
+
+```{r}
+
+# By Month 
+spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>% ggplot(mapping = aes(Sector,Avg_price,fill=Month)) + geom_col(position = "dodge") + theme(axis.text.x = element_text(angle = 70, hjust = 1)) + ggtitle("Avg Price by Sector Per Month")
+
+
+```
+
+
+
+Box plot for year
+
+
+```{r}
+# Box PLot for year 
+spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>% ggplot(mapping = aes( stringr::str_remove(Sector,'Sector') ,Avg_price,fill=Year)) + geom_boxplot(position = "dodge") + theme(axis.text.x = element_text(angle = 30, hjust = 1)) + labs(title = "Boxplot of Stocks by Year ")+ ylim(0,200) + xlab( "Sector")
+
+# ----- TEMP
+# spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%  pivot_longer(c('2015','2016','2017','2018','2019','2020'),"Year",values_to = "Avg_price" ) %>%   ggplot(mapping = aes(Month,Avg_price,fill=Year)) + geom_col() + theme(axis.text.x = element_text(angle = 70, hjust = 1)) +   geom_bar(position = "dodge2")
+#   # ggplot(mapping = aes(Avg_price,fill=Month)) +   geom_histogram(position = "fill")
+#   # ggplot( aes(Month, Avg_price)) + geom_area(aes(fill = Month))
+#    # ggplot(mapping = aes(Month , Avg_price,group=Sector)) + geom_line(aes(colour = Sector), position = "stack") + geom_point(aes(colour = Sector), position = "stack") +  geom_area(aes(fill = Sector))
+
+
+```
+
+
+From the box plot above we can analyze that mostly all the sectors in our dataset have some outliers throughout 5 years, except two sectors that are: `Technology` and `Utilities`.
+
+
+
+Analyzing top 3 stocks in each Sector
+
+
+```{r}
+
+library(dplyr)
+
+
+data_price_month %>% group_by(sname)  %>%  summarise(Avg = mean(Avg_price)) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%   arrange(desc(Avg)) %>% top_n(n=16,wt = Avg)
+
+data_stock = data_price_month %>% group_by(sname)  %>%  summarise(Avg = mean(Avg_price)) %>% left_join(.,data_indus,by = c("sname"="CODE"))  %>% filter(!is.na(Sector)) %>%   arrange(desc(Avg)) %>% top_n(n=20,wt = Avg)
+
+head(data_stock)
+unique(cbind(data_stock$NAME,data_stock$sname,data_stock$Sector))
+
+  # ggplot(mapping = aes(Month,Avg_price,fill=Year)) + geom_col() + theme(axis.text.x = element_text(angle = 70, hjust = 1)) +   geom_bar(position = "dodge2")
+```
+
+
+ We will study the flow on some of the stocks from Health and Tech Sectors like:
+ 
+ `ANTM` Anthem, Inc
+ 
+ `ANET` Arista Networks, Inc
+ 
+ `BA` The Boeing Company
+
+
+```{r}
+
+library(stringr)
+
+
+spread(data_price_month,Year,Avg_price) %>% left_join(.,data_indus,by = c("sname"="CODE"))%>% filter(!is.na(Sector))
+
+summary(data_pro)
+# Only Keeping Date, open_price ,      sname  , interpolated = FALSE
+glimpse((data_pro))
+
+data_Main <- data_pro %>% filter(!interpolated == TRUE )%>% .[,c(2,3,10)] %>% 
+  subset( sname %in% data_stock$sname) 
+
+
+
+head(data_Main)
+
+```
+
+
+Converting the data of stokcs in wide format 
+
+
+```{r}
+
+wide_data_Main <- spread(data_Main,sname,open_price)
+
+head(wide_data_Main)
+
+```
+
+
+ Fit an AR model to the follwing data:
+ 
+ `ANTM` Anthem, Inc
+ 
+ `ANET` Arista Networks, Inc
+ 
+ `BA` The Boeing Company
+
+```{r}
+
+library(xts)
+# wide_data_Main$begins_at  <- as_datetime(wide_data_Main$begins_at)
+stocks_ANTM <-xts(wide_data_Main$ANTM,  order.by=as.Date(wide_data_Main$begins_at))
+stocks_ANET <- xts(wide_data_Main$ANET, order.by=as.Date(wide_data_Main$begins_at))
+stocks_BA <- xts(wide_data_Main$BA,  order.by=as.Date(wide_data_Main$begins_at))
+
+# Data for only 2020 data 
+wide_data_Main_20 <- wide_data_Main[which(year(wide_data_Main$begins_at) %in% c("2020")),]
+# Data for only Rest than 2020 data 
+wide_data_Main_Old <- wide_data_Main[-which(year(wide_data_Main$begins_at) %in% c("2020")),]
+
+stocks_ANTM_MY  <-xts(wide_data_Main_20$ANTM,  order.by=as.Date(wide_data_Main_20$begins_at))
+stocks_ANET_MY <- xts(wide_data_Main_20$ANET, order.by=as.Date(wide_data_Main_20$begins_at))
+stocks_BA_MY <- xts(wide_data_Main_20$BA,  order.by=as.Date(wide_data_Main_20$begins_at))
+
+stocks_ANTM_old  <-xts(wide_data_Main_Old$ANTM,  order.by=as.Date(wide_data_Main_Old$begins_at))
+stocks_ANET_old <- xts(wide_data_Main_Old$ANET, order.by=as.Date(wide_data_Main_Old$begins_at))
+stocks_BA_old <- xts(wide_data_Main_Old$BA,  order.by=as.Date(wide_data_Main_Old$begins_at))
+
+```
+
+
+
+```{r}
+index(stocks_ANTM_MY)
+coredata(stocks_ANTM_MY)
+first(stocks_ANTM_MY)
+stocks_ANTM_MY[]
+
+tail(stocks_ANTM_MY,n=10)
+endpoints(stocks_ANTM_MY,on="months")  
+
+ 
+stocks_ANTM_MY['2020-04-14']
+month.abb[month(index(stocks_ANTM_MY))]
+nmonths(stocks_ANTM_MY)
+head(stocks_ANTM_MY,n=10)
+
+```
+
+
+
+
+```{r}
+to.weekly(stocks_ANTM_MY)%>% as.data.frame %>% cbind(.,yr=week(index(to.weekly(stocks_ANTM_MY))))%>% pivot_longer(c(stocks_ANTM_MY.Open,stocks_ANTM_MY.High,stocks_ANTM_MY.Low,stocks_ANTM_MY.Close),names_to="Key" , values_to = "Prc")  %>% ggplot(aes(x=yr, y= Prc,fill=Key))+  geom_line(aes(colour=Key)) #+geom_col(position="dodge", alpha=0.5) 
+
+```
+
+
+
+In the above graph, it shows weekly change in Anthem stock data i.e. open price, close price, high price, low price.
+
+
+
+```{r}
+to.monthly(stocks_ANTM_MY) %>% as.data.frame %>% cbind(.,yr=index(to.monthly(stocks_ANTM_MY)))%>% pivot_longer(c(stocks_ANTM_MY.Open,stocks_ANTM_MY.High,stocks_ANTM_MY.Low,stocks_ANTM_MY.Close),names_to="Key" , values_to = "Prc")  %>% ggplot(aes(x=yr, y= Prc,fill=Key))+  geom_line(aes(colour=Key)) +geom_col(position="dodge", alpha=0.5) 
+
+```
+
+
+In the above graph, it shows monthly change in Anthem stock data i.e. open price, close price, high price, low price.
+
+
+
+
+Periodicity of Anthem Stocks data
+
+
+```{r}
+periodicity(stocks_ANTM_MY)
+
+str(stocks_ANTM_MY)
+
+
+week(index(to.weekly(stocks_ANTM_MY)))
+
+
+stocks_ANTM_MY[c("2020-01-02","2020-01-03")]
+
+stocks_ANTM_MY[str_which(index(stocks_ANTM_MY),"\\d+-\\d+-03")]
+```
+
+
+
+With the commands head() and tail() we can see the first and last 6 lines of the base. There are 6 columns with: opening price, maximum and minimum prices, closing price, volume of transactions and adjusted price. Using the command summary() we verify the descriptive statistics of each price series and volume. The command str() returns the object structure. In this case, it's a xts object, a time series.
+
+
+
+### Time Series Forecasting
+
+
+```{r}
+
+
+library(forecast)
+
+head(stocks_ANTM)
+tail(stocks_ANTM)
+summary(stocks_ANTM)
+str(stocks_ANTM)
+plot(stocks_BA)
+acf(stocks_ANTM)
+
+
+acf_ANTM = acf(stocks_ANTM,lag.max = 60)
+acf_BA = acf(stocks_BA,lag.max = 30)
+acf_ANET = acf(stocks_ANET,lag.max = 30)
+acf_BA= acf(stocks_BA,lag.max = 30,plot = FALSE)
+
+
+autoplot(stocks_ANTM)
+frequency(stocks_ANTM)
+
+(acf(stocks_BA,lag.max = 30))
+
+```
+
+
+Plot for 2020 Data only
+
+
+```{r}
+
+acf(stocks_ANTM_MY,lag.max = 30)
+autoplot(stocks_ANTM_MY)
+head(stocks_ANTM_MY)
+frequency(stocks_ANTM_MY)
+
+```
+
+
+For for rest of the data before 2020
+ 
+Plot for 2020 Data only
+
+
+```{r}
+
+acf(stocks_ANTM_old)
+plot(stocks_ANTM_old)
+head(stocks_ANTM_old)
+frequency(stocks_ANTM_old)
+```
+
+
+The ACF plots test if an individual lag autocorrelation is different than zero. An alternative approach is to use the Ljung-Box test, which tests whether any of a group of autocorrelations of a time series are different from zero. 
+
+In essence it tests the "overall randomness" based on a number of lags. If the result is a small p-value than it indicates the data are probably not white noise.
+
+
+For 2020 Data
+
+
+```{r}
+
+Box.test(wide_data_Main_20$ANTM, lag = 30, fitdf = 0, type = "Lj")
+Box.test(wide_data_Main$ANTM, lag = 4, fitdf = 0, type = "Lj")
+```
+
+
+Here, we perform a Ljung-Box test on the first 24 lag autocorrelations. The resulting p-value is significant at p < .001,  so this supports our ACF plot consideration above where we stated it's likely this is not purely white noise and that some time series information exists in this data.
+
+ 
+```{r}
+plot(cbind(stocks_ANTM,stocks_ANET,stocks_BA))
+
+plot(cbind(stocks_ANTM_MY,stocks_ANET_MY,stocks_BA_MY))
+plot(cbind(stocks_ANTM_old,stocks_ANET_old,stocks_BA_old))
+
+```
+
+
+These plots suggest that these slots the stocks improved from their position from mid of 2016 though 2018, and then it remained constant in progress untill Late 2019 and early 2020.
+
+the trend is the long-term increase or decrease in the data. There is an increasing trend in the cement data.
+the seasonal pattern occurs when a time series is affected by seasonal factors such as the time of the year or the day of the week. The daily data of the stocks_ANTM doens't show any seasonality in the graph. 
+
+the cycle occurs when the data exhibit rises and falls that are not of a fixed period. These fluctuations are usually due to economic conditions and are often related to the "business cycle". We can see a few cycles in our in stocks_ANTM data from 2015 to 2018 and then in 2020 we have sudden drop due to covid 19.
+  #https://afit-r.github.io/ts_exploration
+
+
+### Autocorrelation of Time Series
+
+Another way to look at time series data is to plot each observation against another observation that occurred some time previously. For example, we could plot yt agaisnt yt-1 . This is called a lag plot because you are plotting the time series against lags of itself. 
+
+
+```{r}
+
+plot(diff(stocks_ANTM))
+plot(diff(stocks_BA))
+plot(diff(stocks_ANET))
+
+dif_stocks_ANTM <- diff(stocks_ANTM)
+dif_stocks_ANET <- diff(stocks_ANET)
+dif_stocks_BA <- diff(stocks_BA)
+
+plot(cbind(dif_stocks_ANTM,dif_stocks_ANET,dif_stocks_BA))
+
+# Correatliton Between the stocks 
+cor(stocks_BA,stocks_ANET)
+cor(wide_data_Main$ANET,wide_data_Main$ANTM)
+cor(wide_data_Main_20$ANET,wide_data_Main_20$ANTM)
+cor(wide_data_Main_Old$ANET,wide_data_Main_Old$ANTM)
+
+
+cor(stocks_BA,stocks_ANTM)
+cor(wide_data_Main$BA,wide_data_Main$ANTM)
+cor(wide_data_Main_20$BA,wide_data_Main_20$ANTM)
+cor(wide_data_Main_Old$BA,wide_data_Main_Old$ANTM)
+psych::pairs.panels(as.matrix(wide_data_Main[,c('ANTM','BA','ANET')]))
+psych::pairs.panels(as.matrix(wide_data_Main_Old[,c('ANTM','BA','ANET')]))
+psych::pairs.panels(as.matrix(wide_data_Main_20[,c('ANTM','BA','ANET')]))
+
+
+```
+
+
+```{r}
+class(stocks_ANTM)
+plot.xts(stocks_ANTM)
+acf(stocks_ANTM,lag.max = 30)
+acf(stocks_ANET)
+acf(stocks_BA)
+
+
+
+plot(diff(as.zoo(stocks_ANTM)))
+
+head(as.zoo(stocks_ANTM))
+
+```
+
+
+White Noise : Time series that show no autocorrelation are called "white noise". 
+Above plots shows that its of type of Random Walk model ,  and the (MA Model) Moving Average model should  give better estimates of this index.
+
+
+```{r}
+#	For a given time series�x�we can fit the autoregressive (AR) model using the�arima()�command and setting�order�equal to�c(1, 0, 0). Note for reference that an AR model is an�ARIMA(1, 0, 0)�model.
+
+# Fit with Full Data
+# plot.ts(stocks_ANTM)
+AR_ANTM <- arima(stocks_ANTM, order  = c(1,0,0))
+AR_ANTM2 <- arima(stocks_ANTM, order  = c(2,0,0))
+MA_ANTM <- arima(stocks_ANTM, order  = c(0,0,1))
+AR_ANTM_fit <- as.ts(stocks_ANTM) - resid(AR_ANTM)
+MA_ANTM_fit <- as.ts(stocks_ANTM) - resid(MA_ANTM)
+AR_ANTM2_fit <- as.ts(stocks_ANTM) - resid(AR_ANTM2)
+summary(AR_ANTM)
+summary(MA_ANTM)
+# points(AR_ANTM_fit, type = "l", col = 4, lty = 2)
+# points(MA_ANTM_fit, type = "l", col = 3, lty = 3)
+
+
+ggplot(stocks_ANTM, aes(x = index(stocks_ANTM))) +
+  # geom_line(aes(y= coredata(stocks_ANTM) , color="BASE")) +
+  geom_line(aes(y = AR_ANTM_fit, color = "AR Fit")) + 
+   geom_line(aes(y = MA_ANTM_fit, color = "MA Fit"))+
+  geom_line(aes(y= AR_ANTM2_fit,color="AR2"))+
+  ggtitle("Anthem(ANTM) from 2015-20") +
+  scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  xlab("Date") + ylab("Price") 
+
+  # scale_colour_manual("Series", values=c("AR Fit"="gray40", "MA Fit"="firebrick4", "BASE"="darkcyan"))
+
+```
+
+
+Fit with Only data After 2020
+
+
+```{r}
+
+# plot.ts(stocks_ANTM_MY)
+AR_ANTM_MY <- arima(stocks_ANTM_MY, order  = c(1,0,0))
+MA_ANTM_MY <- arima(stocks_ANTM_MY, order  = c(0,0,1))
+AR_ANTM_MY_fit <- as.ts(stocks_ANTM_MY) - resid(AR_ANTM_MY)
+MA_ANTM_MY_fit <- as.ts(stocks_ANTM_MY) - resid(MA_ANTM_MY)
+# points(AR_ANTM_MY_fit, type = "l", col = 4, lty = 2)
+# points(MA_ANTM_MY_fit, type = "l", col = 3, lty = 3)
+
+
+ggplot(stocks_ANTM_MY, aes(x = index(stocks_ANTM_MY))) +
+  geom_line(aes(y= coredata(stocks_ANTM_MY) , color="BASE")) +
+  geom_line(aes(y = AR_ANTM_MY_fit, color = "AR Fit")) + 
+   geom_line(aes(y = MA_ANTM_MY_fit, color = "MA Fit"))+
+   ggtitle("Anthem(ANTM) from 2020") +
+  scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  xlab("Date") + ylab("Price") 
+
+
+# Fit with Data before 2020
+AR_ANTM_old <- arima(stocks_ANTM_old, order  = c(1,0,0))
+AR_ANTM_old2 <- arima(stocks_ANTM_old, order  = c(2,0,0))
+MA_ANTM_old <- arima(stocks_ANTM_old, order  = c(0,0,1))
+AR_ANTM_old_fit <- as.ts(stocks_ANTM_old) - resid(AR_ANTM_old)
+MA_ANTM_old_fit <- as.ts(stocks_ANTM_old) - resid(MA_ANTM_old)
+
+ggplot(stocks_ANTM_old, aes(x = index(stocks_ANTM_old))) +
+  geom_line(aes(y= coredata(stocks_ANTM_old) , color="BASE")) +
+  geom_line(aes(y = AR_ANTM_old_fit, color = "AR Fit")) + 
+   geom_line(aes(y = MA_ANTM_old_fit, color = "MA Fit"))+
+  ggtitle("Anthem(ANTM) Before 2020") +
+  scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  xlab("Date") + ylab("Price") 
+
+
+```
+
+
+
+### Predicting Time Series data 
+
+
+We will evalute all the data models and see its predction using both the models with Currnt Years data.
+
+
+```{r}
+
+# Make a 1-step through 10-step forecast based on MA
+predict(AR_ANTM,n.ahead = 10)
+
+# Plot the  series plus the forecast and 95% prediction intervals
+
+AR_forecasts <- predict(AR_ANTM, n.ahead = 300)$pred
+AR_forecast_se <- predict(AR_ANTM, n.ahead = 300)$se
+plot.ts(stocks_ANTM)
+points(AR_forecasts, type = "l", col = 4,lty=2)
+# points(AR_forecasts - AR_forecast_se, type = "l", col = 2, lty = 1)
+points(AR_forecasts - 2*AR_forecast_se, type = "l", col = 2, lty = 1)
+points(AR_forecasts + 2*AR_forecast_se, type = "l", col = 2, lty = 1)
+
+
+  
+```
+
+
+```{r}
+#--------------------
+library(forecast)
+# We can then use the ARIMA model to make forecasts for future values of the time series, using the "forecast.
+AR_ANTM_forcast <- forecast(AR_ANTM, h=30,level=c(99.5))
+# We can plot the observed value of stock for the , as well as the predicted that would be predicted for these and for the next 5 days using our ARIMA(0,0,1) model, 
+plot(AR_ANTM_forcast)
+#--------------------
+
+# Plot of orignal data set and predicaitn  of 2020 based on old data
+
+AR_old_forecasts <- predict(AR_ANTM_old, n.ahead = 300)$pred
+AR_old_forecasts2 <- predict(AR_ANTM_old2, n.ahead = 300)$pred
+AR_old_forecast_se <- predict(AR_ANTM_old, n.ahead = 300)$se
+AR_old_forecast_se2 <- predict(AR_ANTM_old2, n.ahead = 300)$se
+plot.ts(stocks_ANTM)
+points(AR_old_forecasts, type = "l", col = 4,lty=2)
+points(AR_old_forecasts2 - 2*AR_old_forecast_se2, type = "l", col = 3, lty = 3)
+points(AR_old_forecasts - 2*AR_old_forecast_se, type = "l", col = 2, lty = 1)
+points(AR_old_forecasts + 2*AR_old_forecast_se, type = "l", col = 2, lty = 1)
+
+
+predict(AR_ANTM_old, n.ahead = 3)$pred
+predict(AR_ANTM_old2, n.ahead = 3)$pred
+```
+
+
+```{r}
+# MA Moving Average Modege
+MA_old_forecasts <- predict(MA_ANTM_old, n.ahead = 300)$pred
+MA_old_forecast_se <- predict(MA_ANTM_old, n.ahead = 300)$se
+plot.ts(stocks_ANTM)
+points(MA_old_forecasts, type = "l", col = 4,lty=2)
+points(MA_old_forecasts - 2*MA_old_forecast_se, type = "l", col = 2, lty = 1)
+points(MA_old_forecasts + 2*MA_old_forecast_se, type = "l", col = 2, lty = 1)
+
+# @----------------------
+AR_MY_forecasts <- predict(AR_ANTM_MY, n.ahead = 5)$pred
+AR_MY_forecast_se <- predict(AR_ANTM_MY, n.ahead = 3)$se
+plot.ts(stocks_ANTM_MY)
+points(AR_MY_forecasts, type = "l", col = 4,lty=2)
+points(AR_MY_forecasts - 2*AR_MY_forecast_se, type = "l", col = 2, lty = 1)
+points(AR_MY_forecasts + 2*AR_MY_forecast_se, type = "l", col = 2, lty = 1)
+
+dim(coredata(stocks_ANTM_MY))
+length(AR_MY_forecasts)
+
+ 
+# REDUCE DATE TO SEE HWO IT GOES FOR MONT OG MARCH
+# PLOT COR PLOT WITH OTHER SHARS ON TOP
+# ggplot(stocks_ANTM_MY, aes(x = index(stocks_ANTM_MY))) 
+
+  # autoplot(AR_ANTM_forcast) + geom_smooth()
+  # geom_line(aes(y= coredata(stocks_ANTM_MY) , color="BASE")) +
+  #   ggtitle("Anthem(ANTM): Predicted next 30") +
+  # scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  # xlab("Date") + ylab("Price") 
+  # 
+  # geom_line(aes(y = AR_forecasts, color = "EXACT")) + 
+  # geom_line(aes(y = AR_forecasts - 2*AR_forecast_se, color = "-Range"))+
+  # geom_line(aes(y = AR_forecasts + 2*AR_forecast_se, color = "+Range"))+
+  # ggtitle("Anthem(ANTM): Predicted next 30") +
+  # scale_x_date(date_labels = "%b %y", date_breaks = "3 months")+
+  # xlab("Date") + ylab("Price") 
+
+
+AIC(AR_ANTM,MA_ANTM)
+BIC(AR_ANTM,MA_ANTM)
+
+AIC(AR_ANTM_MY,MA_ANTM_MY)
+BIC(AR_ANTM_MY,MA_ANTM_MY)
+
+
+AIC(AR_ANTM_old,MA_ANTM_old)
+BIC(AR_ANTM_old,MA_ANTM_old)
+
+
+```
+
+
+### References
+
+
+
+<!-- https://www.datacamp.com/community/blog/r-xts-cheat-sheet -->
+<!-- https://lamfo-unb.github.io/2017/07/22/intro-stock-analysis-1/ -->
+<!-- https://s3.amazonaws.com/assets.datacamp.com/blog_assets/xts_Cheat_Sheet_R.pdf -->
+<!-- https://a-little-book-of-r-for-time-series.readthedocs.io/en/latest/src/timeseries.html -->
+<!-- https://nwfsc-timeseries.github.io/atsa-labs/sec-tslab-correlation-within-and-among-time-series.html -->

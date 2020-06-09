@@ -1,0 +1,901 @@
+---
+title: 'DATA 621 Homework #5'
+author: 'Critical Thinking Group 4: Rajwant Mishra, Priya Shaji, Debabrata Kabiraj,
+  Isabel Ramesar, Sin Ying Wong and Fan Xu'
+date: "5/1/2020"
+output: 
+  rmdformats::readthedown:
+    #highlight: kate
+    number_sections: true # if you want number sections at each table header
+    smooth_scroll: true
+    theme: united # many options for theme, this one is my favorite.
+    highlight: tango # specifies the syntax highlighting style
+    #highlight: pygments
+    #theme: cerulean
+    #toc: true # table of content true
+    toc_collapsed : true
+    toc_float: true
+    toc_depth: 5
+    code_folding: hide
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
+library(dplyr)
+library(tidyverse)
+library(kableExtra)
+library(visdat)
+library(DT)
+library(psych)
+library(corrplot)
+library(MASS)
+library(matrixStats)
+library(pacman)
+library(bestglm)
+library(glmnet)
+library(AICcmodavg)
+library(RcmdrMisc)
+library(caret)
+p_load(Hmisc, xlsx, xtable, knitr, scales, magrittr, tidyverse, stringr, e1071, corrplot, knitcitations, bibtex, missForest, abc,
+       foreach, doParallel, stargazer, forecast, matrixStats, glmulti, leaps, data.table, highlight, car, Amelia, caret)
+```
+
+# OVERVIEW
+
+In this homework assignment, you will explore, analyze and model a data set containing information on approximately 12,000 commercially available wines. The variables are mostly related to the chemical properties of the wine being sold. The response variable is the number of sample cases of wine that were purchased by wine distribution companies after sampling a wine. These cases would be used to provide tasting samples to restaurants and wine stores around the United States. The more sample cases purchased, the more likely is a wine to be sold at a high end restaurant. A large wine manufacturer is studying the data in order to predict the number of wine cases ordered based upon the wine characteristics. If the wine manufacturer can predict the number of cases, then that manufacturer will be able to adjust their wine offering to maximize sales.
+
+Your objective is to build a count regression model to predict the number of cases of wine that will be sold given certain properties of the wine. HINT: Sometimes, the fact that a variable is missing is actually predictive of the target. You can only use the variables given to you (or variables that you derive from the variables provided).
+
+Below is a short description of the variables of interest in the data set:
+
+| Variable Name       | Definition                                                                      | Theoretical Effect |
+|---------------------|---------------------------------------------------------------------------------|--------------------|
+| IN / INDEX          | Identification Variable (do not use)                                            | None               |
+| TARGET              | Number of Cases Purchased                                                       | None               |
+| AcidIndex           | Proprietary method of testing total acidity of wine by using a weighted average |                    |
+| Alcohol             | Alcohol Content                                                                 |                    |
+| Chlorides           | Chloride content of wine                                                        |                    |
+| CitricAcid          | Citric Acid Content                                                             |                    |
+| Density             | Density of Wine                                                                 |                    |
+| FixedAcidity        | Fixed Acidity of Wine                                                           |                    |
+| FreeSulfurDioxide   | Sulfur Dioxide content of wine                                                  |                    |
+| LabelAppeal         | Marketing Score indicating the appeal of label design for consumers. High numbers suggest customers like the label design. Negative numbers suggest customes don't like the design.                                                                 | Many consumers purchase based on the visual appeal of the wine label design. Higher numbers suggest better sales.     |
+| ResidualSugar       | Residual Sugar of wine                                                          |                    |
+| STARS               | Wine rating by a team of experts. 4 Stars = Excellent, 1 Star = Poor            | A high number of stars suggests high sales |
+| Sulphates           | Sulfate conten of wine                                                          |                    |
+| TotalSulfurDioxide  | Total Sulfur Dioxide of Wine                                                    |                    |
+| VolatileAcidity     | Volatile Acid content of wine                                                   |                    |
+| pH                  | pH of wine                                                                      |                    |
+
+# DATA LOAD
+
+We have two datasets. 
+
+- One is the `wine training dataset`, which includes 14 candidate predictors, 1 response variable and 12795 observations.  
+- Other one is the `wine evaluation dataset`, which also includes 14 candidate predictors, 1 response variable but 16129 observations.
+
+We are going to study their missing values, data types and data statistics.
+
+```{r Import Dataset, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
+data_t <- read_csv("wine-training-data.csv") %>%
+  dplyr::select(TARGET, everything())
+
+data_e <- read_csv('wine-evaluation-data.csv')
+```
+
+## Raw Data as-is
+
+### Training Dataset
+```{r Training Dataset, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# Show Entire dataset
+DT::datatable(data_t)
+```
+
+### Evaluation Dataset
+```{r Evaluation Dataset, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# Show Entire dataset
+DT::datatable(data_e)
+```
+
+### Missing Values & Data Type Check
+
+In the `wine training dataset`, there are 14 candidate predictors and 1 response variable with 12,795 observations. In the `wine evaluation dataset`, there are 14 candidate predictors with 3,335 observations. Both datasets have no missing values (eg: NA, NULL or '').
+
+Among the 12 candidate predictors, 3 are categorical (`LabelAppeal`,`AcidIndex`,`STARS`), the other 11 are continuous numerical. The response variable `TARGET` is categorical.
+
+```{r, glimpse training set, fig.cap = "Glimpse of `training set`", message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+glimpse(data_t)
+```
+
+```{r, glimpse evaluation set, fig.cap= "Glimpse of `evaluation set`", message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+glimpse(data_e)
+```
+
+```{r, missing values & data type check, fig.cap= "Missing Values & Data Type Check", message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+library(gridExtra)
+p_t_dt <- vis_dat(data_t)
+p_t_m <- vis_miss(data_t)
+p_e_dt <- vis_dat(data_e)
+p_e_m <- vis_miss(data_e)
+grid.arrange(p_t_m,p_e_m, p_t_dt,p_e_dt,ncol = 2, 
+             widths = c(1,1),
+             heights = c(1.5,1),
+             top = 'Missing Values & Data Type Check
+             Training Set                                                     Evaluation Set')
+
+#Amelia::missmap(data_t, main = "Missing vs Observed Values in Traning Data")
+
+Non_NAs <- sapply(data_t, function(y) sum(length(which(!is.na(y)))))
+NAs <- sapply(data_t, function(y) sum(length(which(is.na(y)))))
+NA_Percent <- NAs / (NAs + Non_NAs)
+NA_SUMMARY <- data.frame(Non_NAs,NAs,NA_Percent)
+
+Amelia::missmap(data_t, main = "Missing vs Observed Values in Traning Data")
+
+kable(NA_SUMMARY)
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+temp <- data_t %>%
+  #select(TARGET, STARS, Alcohol, ResidualSugar, Chlorides, FreeSulfurDioxide, TotalSulfurDioxide, pH, Sulphates) %>%
+  gather("variable", "value", -TARGET) %>%
+  mutate(na = ifelse(is.na(value), "Yes", "No")) %>%
+  group_by(TARGET, na, variable) %>%
+  tally() %>%
+  ungroup()
+
+ temp <- temp %>%
+    group_by(variable, na) %>%
+    summarise(total = sum(n)) %>%
+    merge(temp) %>%
+    mutate(share = n / total)
+ 
+ ggplot(temp, aes(TARGET, share, fill = na)) +
+   geom_bar(stat = "identity", position = "dodge") +
+   scale_fill_brewer(palette = "Set1") +
+   facet_wrap(~variable, ncol = 4) + 
+   ylab("Percent of Group")
+```
+
+
+Below is the summary of the datasets and some inference of it. 
+
+1. It seems there are Null values in the predictor variables but none ine response variables.
+2. Each variables are in different scale.
+
+### Data Statistics Summary
+
+A binary logistic regression model is built using the `training set`, therefore the `training set` is used for the following data exploration.
+
+The data types in the raw dataset are all 'doubles', however the counter `INDEX` and the response variable `target` are categorical. 
+
+```{r summary, fig.cap= "`training set`", message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+library(dplyr)
+data_t_mod <- data_t %>% 
+  dplyr::select(-(INDEX)) %>% 
+  #mutate(TARGET = as.factor(TARGET)) %>%
+  dplyr::select(TARGET, everything())
+DT::datatable(data_t_mod)
+```
+
+The statistics of all variables are list below:
+```{r statistics summary}
+summary(data_t_mod)
+```
+
+The statistics of TARGET Variable.
+
+- **TARGET:** Number of Cases Purchased as Actual
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+options(width=100)
+round(with(data_t, c(summary(TARGET), StdD=sd(TARGET), Skew=skewness(TARGET), Kurt=kurtosis(TARGET))),2)
+```
+
+# DATA EXPLORATION
+
+## Outliers
+
+```{r Box Plot on training set, fig.cap = "Boxplot: Scaled Training Set", warning=FALSE, message=FALSE}
+data_t_mod %>%
+  scale() %>%
+  as.data.frame() %>%
+  stack() %>%
+  ggplot(aes(x = ind, y = values)) +
+  geom_boxplot(fill = 'deeppink4') +
+  labs(title = 'Boxplot: Scaled Training Set',
+       x = 'Variables',
+       y = 'Normalized_Values')+
+  theme(panel.background = element_rect(fill = 'grey'),axis.text.x=element_text(size=10, angle=90))  
+```
+
+The box plot below shows that outliners exist in variables `FixedAcidity`, `VolatileAcidity`, `CitricAcid`, `ResidualSugar`, `Chlorides`, `FreeSulfurDioxide`, `TotalSulfurDioxide`, `Density`, `pH`, `Sulphates`, `Alcohol`, `LabelAppeal` and`AcidIndex`. We use scaled training set to draw the box plot to show the corresponding outliers by ratio.
+
+## Histogram of attributes
+
+- **FixedAcidity:** This variable tells us about the FixedAcidity of wine.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+library(qqplotr)
+with(data_t_mod, c(summary(FixedAcidity), SD=sd(FixedAcidity), Skew=skewness(FixedAcidity), Kurt=kurtosis(FixedAcidity)))
+
+hist <- ggplot(data_t_mod, aes(FixedAcidity)) + geom_histogram(fill = 'dodgerblue', binwidth = 4, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of FixedAcidity') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=FixedAcidity)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of FixedAcidity") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", FixedAcidity)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of FixedAcidity', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), FixedAcidity)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of FixedAcidity by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **VolatileAcidity:** This variable tells us about the VolatileAcidity content of Wine.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(VolatileAcidity), SD=sd(VolatileAcidity), Skew=skewness(VolatileAcidity), Kurt=kurtosis(VolatileAcidity)))
+
+hist <- ggplot(data_t_mod, aes(VolatileAcidity)) + geom_histogram(fill = 'dodgerblue', binwidth = .5, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of VolatileAcidity') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=VolatileAcidity)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of VolatileAcidity") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", VolatileAcidity)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of VolatileAcidity', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), VolatileAcidity)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of VolatileAcidity by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **CitricAcid:** This variable tells us about the Citric Acid Content of wine.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(CitricAcid), SD=sd(CitricAcid), Skew=skewness(CitricAcid), Kurt=kurtosis(CitricAcid)))
+
+hist <- ggplot(data_t_mod, aes(CitricAcid)) + geom_histogram(fill = 'dodgerblue', binwidth = 1, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of CitricAcid') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=CitricAcid)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of CitricAcid") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", CitricAcid)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of CitricAcid', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), CitricAcid)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of CitricAcid by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **ResidualSugar:** This variable tells us about the ResidualSugar of wine.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(ResidualSugar), SD=sd(ResidualSugar), Skew=skewness(ResidualSugar), Kurt=kurtosis(ResidualSugar)))
+
+hist <- ggplot(data_t_mod, aes(ResidualSugar)) + geom_histogram(fill = 'dodgerblue', binwidth = 20, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of ResidualSugar') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=ResidualSugar)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of ResidualSugar") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", ResidualSugar)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of ResidualSugar', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), ResidualSugar)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of ResidualSugar by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **Chlorides:** This variable tells us about the Chloride content of wine.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(Chlorides), SD=sd(Chlorides), Skew=skewness(Chlorides), Kurt=kurtosis(Chlorides)))
+
+hist <- ggplot(data_t_mod, aes(Chlorides)) + geom_histogram(fill = 'dodgerblue', binwidth = .2, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of Chlorides') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=Chlorides)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of Chlorides") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", Chlorides)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of Chlorides', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), Chlorides)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of Chlorides by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **FreeSulfurDioxide** : This variable tells us about the Sulfur Dioxide content of wine.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(FreeSulfurDioxide), SD=sd(FreeSulfurDioxide), Skew=skewness(FreeSulfurDioxide), Kurt=kurtosis(FreeSulfurDioxide)))
+
+hist <- ggplot(data_t_mod, aes(FreeSulfurDioxide)) + geom_histogram(fill = 'dodgerblue', binwidth = 50, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of FreeSulfurDioxide') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=FreeSulfurDioxide)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of FreeSulfurDioxide") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", FreeSulfurDioxide)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of FreeSulfurDioxide', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), FreeSulfurDioxide)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of FreeSulfurDioxide by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **TotalSulfurDioxide** : This variable tells us about the Total Sulfur Dioxide of Wine.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(TotalSulfurDioxide), SD=sd(TotalSulfurDioxide), Skew=skewness(TotalSulfurDioxide), Kurt=kurtosis(TotalSulfurDioxide)))
+
+hist <- ggplot(data_t_mod, aes(TotalSulfurDioxide)) + geom_histogram(fill = 'dodgerblue', binwidth = 200, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of TotalSulfurDioxide') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=TotalSulfurDioxide)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of TotalSulfurDioxide") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", TotalSulfurDioxide)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of TotalSulfurDioxide', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), TotalSulfurDioxide)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of TotalSulfurDioxide by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **Density:** This variable tells us about the Density of wine.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(Density), SD=sd(Density), Skew=skewness(Density), Kurt=kurtosis(Density)))
+
+hist <- ggplot(data_t_mod, aes(Density)) + geom_histogram(fill = 'dodgerblue', binwidth = .05, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of Density') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=Density)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of Density") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", Density)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of Density', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), Density)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of Density by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **Sulphates:** This variable tells us about the Sulphates content of wine.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(Sulphates), SD=sd(Sulphates), Skew=skewness(Sulphates), Kurt=kurtosis(Sulphates)))
+
+hist <- ggplot(data_t_mod, aes(Sulphates)) + geom_histogram(fill = 'dodgerblue', binwidth = .5, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of Sulphates') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=Sulphates)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of Sulphates") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", Sulphates)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of Sulphates', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), Sulphates)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of Sulphates by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **Alcohol:** This variable tells us about the Alcohol content.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(Alcohol), SD=sd(Alcohol), Skew=skewness(Alcohol), Kurt=kurtosis(Alcohol)))
+
+hist <- ggplot(data_t_mod, aes(Alcohol)) + geom_histogram(fill = 'dodgerblue', binwidth = 2, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of Alcohol') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=Alcohol)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of Alcohol") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", Alcohol)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of Alcohol', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), Alcohol)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of Alcohol by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **LabelAppeal:** Marketing Score indicating the appeal of label design for consumers. High numbers suggest customers like the label design. Negative numbers suggest customers don't like the design. Many consumers purchase based on the visual appeal of the wine label design. Higher numbers suggest better sales.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(LabelAppeal), SD=sd(LabelAppeal), Skew=skewness(LabelAppeal), Kurt=kurtosis(LabelAppeal)))
+
+hist <- ggplot(data_t_mod, aes(LabelAppeal)) + geom_histogram(fill = 'dodgerblue', binwidth = 1, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of LabelAppeal') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=LabelAppeal)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of LabelAppeal") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", LabelAppeal)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of LabelAppeal', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), LabelAppeal)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of LabelAppeal by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+- **AcidIndex:** Proprietary method of testing total acidity of wine by using a weighted average.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(AcidIndex), SD=sd(AcidIndex), Skew=skewness(AcidIndex), Kurt=kurtosis(AcidIndex)))
+
+hist <- ggplot(data_t_mod, aes(AcidIndex)) + geom_histogram(fill = 'dodgerblue', binwidth = 2, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of AcidIndex') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=AcidIndex)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of AcidIndex") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", AcidIndex)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of AcidIndex', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), AcidIndex)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of AcidIndex by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+`AcidIndex` seems to be skewed slightly. It also has a skew of 1.68. This is not enough to worry about. 
+
+- **STARS:** Wine rating by a team of experts. 4 Stars = Excellent, 1 Star = Poor. A high number of stars suggests high sales.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+with(data_t_mod, c(summary(STARS), SD=sd(STARS), Skew=skewness(STARS), Kurt=kurtosis(STARS)))
+
+hist <- ggplot(data_t_mod, aes(STARS)) + geom_histogram(fill = 'dodgerblue', binwidth = 1, color = 'darkgray' ) + 
+ theme_classic() + labs(title = 'Histogram of STARS') + theme(plot.title = element_text(hjust = 0.5)) 
+
+qq_plot <- ggplot(data_t_mod, aes(sample=STARS)) + stat_qq_point(color='dodgerblue') + stat_qq_line(color='darkgray') +
+  labs(x="Thoretical Quantiles", y="Sample Quantiles", title = "QQ Plot of STARS") + theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+box_plot <- ggplot(data_t_mod, aes(x="", STARS)) + geom_boxplot(fill='dodgerblue', color='darkgray')+ theme_classic() +
+  labs(title = 'Boxplot of STARS', x="") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+box_TARGET <- ggplot(data_t_mod, aes(x=factor(TARGET), STARS)) + geom_boxplot(fill='dodgerblue', color='darkgrey') +
+  labs(x='TARGET', title = 'Boxplot of STARS by TARGET') + theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+## Density Plot
+
+```{r, fig.cap = "Density Plot: Training Set", eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+data_t_mod %>%
+  select_if(is.numeric) %>%
+  keep(is.numeric) %>%                     # Keep only numeric columns
+  gather() %>%                             # Convert to key-value pairs
+  ggplot(aes(x=value)) +                   # Plot the values
+    facet_wrap(~key, scales = "free") +    # In separate panels
+    geom_density()  
+```
+
+The scaled histogram and density plots show that variables `AcidIndex` is right skewed; `AcidIndex`, `STARS`, `LabelAppeal` and `TARGET` have multimodal distribution; while most others seem to be normally distrbuted due to the bell curve they display. 
+
+## Label Scores
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+m_scores <- data_t_mod$LabelAppeal %>% table() %>% data.frame() %>%  mutate(per = (Freq/sum(Freq))*100)
+names(m_scores)[1]<-"score"
+lbls <- paste(m_scores$score, "\n", round(m_scores$per, 2)) # add percents to labels
+lbls <- paste(lbls,"%",sep="") # ad % to labels
+pie(m_scores$Freq,labels = lbls, col= c("#990000", "#336600", "#CC6600", "#CCCC00", "#4CC099"), main="Marketing Scores Proportioned")
+```
+
+## Univariate Analysis
+
+### Response Variable
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data_t_mod %>%
+  group_by(TARGET) %>%
+  tally() %>%
+  ggplot(., aes(x = factor(TARGET), y = n, fill = factor(TARGET))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_brewer(palette = "Set1") + 
+  theme(legend.position = "none") +
+  labs(x="Number of Wine Cases Purchased (TARGET)",y = "Count")
+```
+
+## Correlation Plot
+
+We implement a correlation matrix to better understand the correlation between variables in the dataset. 
+
+```{r correlation hitmap, fig.cap = "Correlation Pie Chart: Training Set"}
+drop_na(data_t_mod) %>%
+  select_if(is.numeric) %>%
+  cor() %>%
+  #corrplot(method = "square", type = "upper", order = 'hclust', tl.col = "black", diag = FALSE, bg= 'white', col = colorRampPalette(c('deeppink4','white','steelblue1'))(100))
+  corrplot.mixed(upper = 'pie', lower = 'number', order = 'hclust', tl.col = "black")
+
+pairs.panels(data_t_mod[1:15]) 
+```
+
+The correlation matrix below shows that the response variable `TARGET` has strong positive relationship (>=0.6) with variables `FixedAcidity`,`CitricAcid`,`ResidualSugar`,`Density`,`Alcohol`. 
+
+```{r include=TRUE, fig.cap = "Correlation Chart: Training Set", echo=TRUE, warning=FALSE, message=FALSE}
+PerformanceAnalytics::chart.Correlation(data_t, histogram=TRUE, pch=19)
+```
+
+Scatter plots against `TARGET`:
+
+```{r}
+data_t %>%
+  gather(-TARGET, key = "key", value = "ResponseVariables") %>%
+  ggplot(aes(x = ResponseVariables, y = TARGET)) +
+  geom_point(size = .5) +
+  geom_smooth(method='lm',formula=y~x, color = 'dark grey')+
+  facet_wrap(~ key, scales = "free")+
+  ggthemes::theme_tufte()+
+  ylab('Cases Bought')
+```
+
+There don't seem to be any crazy patterns here. It mostly looks linear which is a good sign for us. `STARS` and `LableAppleal` look like they have the greatest correlation.
+
+
+```{r test}
+data_t %>%
+  dplyr::select(-(INDEX)) %>%
+  cor() %>%
+  as.data.frame() %>%
+  rownames_to_column('Variable') %>%
+  dplyr::rename(Correlation_vs_Response = TARGET)
+```
+
+## Consolidated Data Dictionary
+
+As a summary of the data exploration process, a data dictionary is created below:
+
+```{r data dictionary, fig.cap = "Data Dictionary"}
+data_stat <- data_t %>% 
+  dplyr::select(-TARGET,-INDEX) %>%
+  gather() %>%
+  group_by(key) %>%
+  summarise(Mean = mean(value),
+            Median = median(value),
+            Max = max(value),
+            Min = min(value),
+            SD = sd(value))
+
+data_cor <- data_t %>%
+  cor() %>%
+  as.data.frame() %>% 
+  dplyr::select(TARGET) %>% 
+  rownames_to_column('Variable') %>%
+  dplyr::rename(Correlation_vs_Response = TARGET)
+
+data_t %>% 
+  gather() %>%
+  dplyr::select(key) %>%
+  unique() %>%
+  dplyr::rename(Variable = key) %>%
+  mutate(
+         #Var_Type_1 = case_when(Variable %in% c('target','chas') ~ 'categorical', 
+         #                        Variable %in% c('rad','tax') ~ 'discrete numerical',
+         #                        TRUE ~ 'continuous numerical'),
+         #Var_Type_2 = if_else(Variable == 'target', 'response', 'predictor'),
+         Missing_Value = 'No') %>%
+  left_join(data_stat, by = c('Variable'='key')) %>%
+  left_join(data_cor, by = 'Variable') %>%
+  mutate_if(is.numeric,round,2) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),full_width = F)
+```
+
+# DATA PREPARATION
+
+Lets first split the data into training and test.
+
+MICE (Multivariate Imputation by Chained Equations) package helps in inspecting, imputing, diagonise, analyze, pool the result, and generate simulated incomplete data
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+require(mice)
+set.seed(999) 
+sampl = caTools::sample.split(data_t_mod$TARGET, SplitRatio = .80)
+wine_train1 <- subset(data_t_mod, sampl == TRUE)
+wine_test1 <- subset(data_t_mod, sampl == FALSE)
+
+wine_train2 <-  as.data.frame(tidyr::complete(mice(wine_train1, m=1, maxit = 5, seed = 42)))
+wine_test2 <- as.data.frame(tidyr::complete(mice(wine_test1, m=1, maxit = 5, seed = 42)))
+```
+
+Given the low correlation between `AcidIndex` and `TARGET` it might not make a huge difference, however, we will log transform it to test. 
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+wine_train2$AcidIndex <- log(wine_train2$AcidIndex)
+wine_test2$AcidIndex <- log(wine_test2$AcidIndex)
+```
+
+# BUILD MODELS
+
+## Model I: Poisson Model
+
+### Model 1: Poisson Model without imputations
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+require(ggplot2)
+require(gridExtra)
+
+model1 = glm(TARGET ~  ., data=wine_train1, family=poisson)
+summary(model1)
+plot(model1)
+
+grid.arrange(hist, qq_plot, box_plot, box_TARGET, ncol=2)
+```
+
+### Model 2: Poisson Model  without imputations and only significant variables
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+model2 = glm(TARGET ~  .-FixedAcidity-CitricAcid-ResidualSugar-Chlorides-FreeSulfurDioxide-TotalSulfurDioxide-Density-pH-Sulphates-Alcohol, data=wine_train1, family=poisson)
+summary(model2)
+
+plot(model2)
+```
+
+### Model 3: Poisson Model  with imputations
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+model3 = glm(TARGET ~  ., data=wine_train2, family=poisson)
+summary(model3)
+
+plot(model3)
+```
+
+### Model 4: Poisson Model with imputations and only significant variables
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+model4 = glm(TARGET ~  .-FixedAcidity-CitricAcid-ResidualSugar-Density-Alcohol, data=wine_train2, family=poisson)
+
+summary(model4)
+plot(model4)
+```
+
+## Model II: Negative Binomial
+
+### Model 5 : Negative Binomial without imputations
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+model5 <- glm.nb(TARGET ~ ., data = wine_train1)
+
+summary(model5)
+plot(model5)
+```
+
+### Model 6 : Negative Binomial without imputations and only significant variables
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+model6 <- glm.nb(TARGET ~ .-FixedAcidity-CitricAcid-ResidualSugar-Chlorides-FreeSulfurDioxide-TotalSulfurDioxide-Density-pH-Sulphates-Alcohol, data = wine_train1)
+
+summary(model6)
+plot(model6)
+```
+
+### Model 7 : Negative Binomial with imputations
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+model7 <- glm.nb(TARGET ~ ., data = wine_train2)
+
+summary(model7)
+plot(model7)
+```
+
+### Model 8 : Negative Binomial with imputations and only significant variables
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+model8 <- glm.nb(TARGET ~ .-FixedAcidity-CitricAcid-ResidualSugar-Density-Alcohol, data = wine_train2)
+
+summary(model8)
+plot(model8)
+```
+
+## Model III: Linear Model
+
+### Model 9 : Linear Model with imputations
+
+Using Linear Regression Model on imputed training data.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+model9 <- lm(TARGET ~ ., data = wine_train2)
+
+summary(model9)
+plot(model9)
+```
+
+### Model 10 : Linear Model with imputations and only significant variables.
+
+As we know the significant variables are `FixedAcidity`, `CitricAcid` and `ResidualSugar`, so using the same in the Linear Regression Model and applying the same of imputed training data.
+
+```{r}
+model10 <- lm(TARGET ~ .-FixedAcidity-CitricAcid-ResidualSugar, data = wine_train2)
+
+summary(model10)
+plot(model10)
+```
+
+## Model 11 : Ordinal Logistic Regression
+
+This regression uses ordered factors. I would expect this to be one of the top performers.
+
+```{r}
+polrDF <- wine_train2
+polrDF$TARGET <- as.factor(polrDF$TARGET)
+model11 <- polr(TARGET ~ ., data = polrDF, Hess=TRUE)
+summary(model11)
+```
+
+## Model 12 : Zero inflation 
+
+Zero inflation understands that some Poisson distrobutions are dominated by many zeros. As such it corrects for this. This is one of the most promissing ones because as we saw in our data exploration, there were more zeros, and then normally distributed data after that. 
+
+```{r}
+library(pscl)
+model12 <- zeroinfl(TARGET ~ . | STARS, data = wine_train2, dist = 'negbin')
+summary(model12)
+
+scatterPreds <- predict(model12, wine_train2)
+qplot(wine_train2$TARGET, scatterPreds, main = 'Predicted vs Actual') + ggthemes::theme_tufte()
+residPlot <- scatterPreds - wine_train2$TARGET
+qplot(wine_train2$TARGET, residPlot, main = 'Residuals') + ggthemes::theme_tufte()
+```
+
+# MODEL SELECTION
+
+## Compare Models by MSE/AIC
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+aic1 <- model1$aic
+aic2 <- model2$aic
+aic3 <- model3$aic
+aic4 <- model4$aic
+aic5 <- model5$aic
+aic6 <- model6$aic
+aic7 <- model7$aic
+aic8 <- model8$aic
+aic9 <- model9$aic
+aic10 <- model10$aic
+aic11 <- model11$aic
+aic12 <- model12$aic
+mse1 <- mean((wine_train2$TARGET - predict(model1))^2)
+mse2 <- mean((wine_train2$TARGET - predict(model2))^2)
+mse3 <- mean((wine_train2$TARGET - predict(model3))^2)
+mse4 <- mean((wine_train2$TARGET - predict(model4))^2)
+mse5 <- mean((wine_train2$TARGET - predict(model5))^2)
+mse6 <- mean((wine_train2$TARGET - predict(model6))^2)
+mse7 <- mean((wine_train2$TARGET - predict(model7))^2)
+mse8 <- mean((wine_train2$TARGET - predict(model8))^2)
+mse9 <- mean((wine_train2$TARGET - predict(model9))^2)
+mse10 <- mean((wine_train2$TARGET - predict(model10))^2)
+mse11 <- mean((wine_train2$TARGET - predict(model11))^2)
+mse12 <- mean((wine_train2$TARGET - predict(model12))^2)
+
+compare_aic_mse <- matrix(c(mse1, mse2, mse3, mse4, mse5, mse6, mse7, mse8, mse9, mse10, mse11, mse12,
+                            aic1, aic2, aic3, aic4, aic5, aic6, aic7, aic8, aic9, aic10, aic11, aic12),nrow=12,ncol=2,byrow=TRUE)
+
+rownames(compare_aic_mse) <- c("Model1","Model2","Model3","Model4","Model5","Model6","Model7","Model8","Model9","Model10","Model11","Model12")
+colnames(compare_aic_mse) <- c("MSE","AIC")
+compare_models <- as.data.frame(compare_models)
+
+kable(compare_aic_mse)  %>% 
+  kable_styling(full_width = T)
+```
+
+## Compare Models by Loss
+
+Now lets see the output of the Models using test data
+
+We will use the squared loss to validate the model. We will use the squared difference to select a model (MSE) from predictions on the training sets. (Lower numbers are better.)
+
+```{r}
+modelValidation <- function(mod){
+  preds = predict(mod, wine_test2)
+  diffMat = as.numeric(preds) - as.numeric(wine_test2$TARGET)
+  diffMat = diffMat^2
+  loss <- mean(diffMat)
+  return(loss)
+}
+
+compare_models <- matrix(c(modelValidation(model1),modelValidation(model2),modelValidation(model3),modelValidation(model4),modelValidation(model5),modelValidation(model6),
+                           modelValidation(model7),modelValidation(model8),modelValidation(model9),modelValidation(model10),modelValidation(model11),modelValidation(model12)),
+                         nrow=12,ncol=1,byrow=TRUE)
+
+rownames(compare_models) <- c("Model1","Model2","Model3","Model4","Model5","Model6","Model7","Model8","Model9","Model10","Model11","Model12")
+colnames(compare_models) <- c("Loss:")
+compare_models <- as.data.frame(compare_models)
+compare_models
+```
+
+Following deductions can be made as per above values:
+
+- A regular Poisson regression does not perform very well.
+- The same can be said for the Negative Binomial.
+- The linear model actually performs very well. 
+- Very surprisinly, Ordinal Logistic Regression does not work as well as the linear model. 
+
+Because we are not interested in gaining insight into the underlying causes of wine selection, we will use the squared loss. This will tell us how accurate our model is without caring about confidence intervals etc.
+
+Based on this metric, Zero Poission Inflation is the most accurate. 
+
+From the above models, Model12 - Zero Poission Inflations has least loss as it uses less variables and is parsimonious. Also the R2 looks fine. The squared loss is also fine.
+
+* In terms of MSE and AIC, `Model 5` is best followed by `Model 4` and tied `Model 2` and `Model 12`.
+* In terms of Loss, `Model 12` is best followed closely by `Model 9` and `Model 10`.
+
+Overall, we choose `Zero Poission Inflation` due to following :
+- least loss
+- good MSE score
+- good AIC score
+
+## Prediction on Evaluation Data
+
+We will use the same method to impute and use log transformation for AcidIndex.
+
+```{r}
+require(mice)
+data_e_mod <- data_e %>% dplyr::select(-(IN)) %>% mice(m=1, maxit = 5, seed = 42)
+
+wine_eval <- as.data.frame(complete(data_e_mod))
+wine_eval$AcidIndex <- log(wine_eval$AcidIndex)
+wine_eval$TARGET <- predict(model12, newdata=wine_eval)
+write.csv(wine_eval,"Evaluation_Full_Data.csv", row.names=FALSE)
+
+data_predicted_eval <- read_csv("Evaluation_Full_Data.csv")
+DT::datatable(data_predicted_eval)
+```
+
+- **TARGET:** Number of Cases Purchased as Predicted
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=TRUE, results='show'}
+options(width=100)
+round(with(data_predicted_eval, c(summary(TARGET), StdD=sd(TARGET), Skew=skewness(TARGET), Kurt=kurtosis(TARGET))),2)
+```
+
+
+```

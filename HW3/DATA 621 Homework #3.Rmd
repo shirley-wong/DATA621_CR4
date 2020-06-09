@@ -1,0 +1,131 @@
+---
+title: 'DATA 621 Homework #3'
+author: 'Critical Thinking Group 4: Rajwant Mishra, Priya Shaji, Debabrata Kabiraj,
+  Isabel Ramesar, Sin Ying Wong and Fan Xu'
+date: "3/15/2020"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_collapsed: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+    toc_depth: '5'
+  pdf_document:
+    extra_dependencies:
+    - geometry
+    - multicol
+    - multirow
+  rmdformats::readthedown:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    number_sections: no
+    smooth_scroll: yes
+    theme: united
+    toc_collapsed: yes
+    toc_depth: 5
+    toc_float: yes
+theme: lumen
+number_sections: yes
+toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning = FALSE, message=FALSE}
+library(tidyverse)
+
+```
+
+# Overview
+In this homework assignment, you will explore, analyze and model a data set containing information on crime for various neighborhoods of a major city. Each record has a response variable indicating whether or not the crime rate is above the median crime rate (1) or not (0).
+
+Your objective is to build a binary logistic regression model on the training data set to predict whether the neighborhood will be at risk for high crime levels. You will provide classifications and probabilities for the evaluation data set using your binary logistic regression model. You can only use the variables given to you (or variables that you derive from the variables provided). Below is a short description of the variables of interest in the data set:
+
+| Variable Name | Definition                                                                   | Variable Type |
+|---------------|------------------------------------------------------------------------------|---------------|
+| zn            | proportion of residential land zoned for large lots (over 25000 square feet) | predictor     |
+| indus         | proportion of non-retail business acres per suburb                           | predictor     |
+| chas          | a dummy var. for whether the suburb borders the Charles River (1) or not (0) | predictor     |
+| nox           | nitrogen oxides concentration (parts per 10 million)                         | predictor     |
+| rm            | average number of rooms per dwelling                                         | predictor     |
+| age           | proportion of owner-occupied units built prior to 1940                       | predictor     |
+| dis           | weighted mean of distances to five Boston employment centers                 | predictor     |
+| rad           | index of accessibility to radial highways                                    | predictor     |
+| tax           | full-value property-tax rate per $10,000                                     | predictor     |
+| ptratio       | pupil-teacher ratio by town                                                  | predictor     |
+| black         | 1000(Bk - 0.63)2 where Bk is the proportion of blacks by town                | predictor     |
+| lstat         | lower status of the population (percent)                                     | predictor     |
+| medv          | median value of owner-occupied homes in $1000s                               | predictor     |
+| target        | whether the crime rate is above the median crime rate (1) or not (0)         | response      |
+
+# Deliverables
+A write-up of your solutions submitted in PDF format. Assigned prediction (probabilities, classifications) for the evaluation data set. Use 0.5 threshold.
+
+```{r, eval=TRUE, warning=FALSE, message=FALSE, echo=FALSE, results='hide'}
+packages <- c("DT","data.table","kableExtra","knitr","stringr","tidyr","tidyverse","dplyr","psych","reshape","mice","caret","e1071","Hmisc","visdat","corrplot","bbmle","DMwR","scatterplot3d","car","broom","corrplot")
+# install.packages(packages, repos="http://cran.us.r-project.org", dependencies=TRUE)
+# invisible(lapply(packages, library, character.only = T))
+library(DT)
+library(data.table)
+library(kableExtra)
+library(knitr)
+library(tidyverse)
+library(psych)
+library(reshape)
+library(mice)
+library(caret)
+library(e1071)
+library(Hmisc)
+library(visdat)
+library(corrplot)
+library(bbmle)
+library(DMwR)
+library(scatterplot3d)
+library(car)
+library(broom)
+library(corrplot)
+```
+
+# Data Exploration
+
+The data set describes the crime data for various neighborhoods of a major city.  Each record has a response variable indicating whether or not the crime rate is above the median crime rate (1) or not (0). The data set includes 13 variables and the training set includes 466 records.
+
+Load the crime training data set (attached in Blackboard to the assignment).
+
+```{r Import Dataset, message=FALSE, warning=FALSE}
+data_t <- read_csv('https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW3/crime-training-data_modified.csv')
+
+data_e <- read_csv('https://raw.githubusercontent.com/Rajwantmishra/DATA621_CR4/master/HW3/crime-evaluation-data_modified.csv')
+```
+
+
+## View rows and columns, variable types
+
+Glimpse of the data shows 13 variables which 2 of them are categorical, and the other 11 variables are numerical.  The two categorical variables are one predictor variable and one response variable.  There are no NA values among the whole data set.
+
+```{r, warning=FALSE, message=FALSE}
+glimpse(data_t)
+```
+
+Sample 6 rows with sample 7 columns
+```{r, warning=FALSE, message=FALSE}
+head(data_t)
+```
+
+Show entire dataset of training data
+```{r, warning=FALSE, message=FALSE}
+DT::datatable(data_t, options = list(pagelength=5))
+```
+
+Show entire dataset of evaluation data
+```{r, warning=FALSE, message=FALSE}
+DT::datatable(data_e, options = list(pagelength=5))
+```
+
+
+
